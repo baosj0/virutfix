@@ -140,6 +140,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	BOOL AdjustSize = FALSE;
 	BOOL isValidSectionTable = FALSE;
 	int virutkind = -1;
+	int calc_backupvaluemethod = 0;       //1 代表加法  2代表xor
 
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
@@ -380,7 +381,7 @@ new1:
 					if (dest >= pLastSec->VirtualAddress && dest < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)
 					{
 #if DEBUG
-						printf("HOOK点1跳到了尾节: hook点1%x 入口点节尾%x\n", hook1pos_RVA, dest);
+						printf("HOOK点1跳到了尾节: hook点1%x 节尾%x\n", hook1pos_RVA, dest);
 #endif // DEBUG
 						hook1pos_RVA = oep + i;
 						CodeEntry2_RVA = dest;
@@ -550,7 +551,7 @@ new1:
 					}
 
 #if DEBUG
-					printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x\n", damn, key1All[numofblock2_trueins]);
+					printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins],CodeEntry2_base_RVAAll[numofblock2_trueins]);
 #endif // DEBUG
 					++numofblock2_trueins;
 
@@ -841,6 +842,18 @@ new1:
 						{
 							sig_confirmed2 = 1;
 							backvalue2 = *(int*)(pLastCode + i + 4);
+							calc_backupvaluemethod = 1;
+#if DEBUG
+							printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+						}
+
+						if (*(pLastCode + i) == 0x81 && *(pLastCode + i + 1) == 0x74
+							&& *(pLastCode + i + 2) == 0x24 && *(pLastCode + i + 3) == 0x20)
+						{
+							sig_confirmed2 = 1;
+							backvalue2 = *(int*)(pLastCode + i + 4);
+							calc_backupvaluemethod = 2;
 #if DEBUG
 							printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
@@ -1179,7 +1192,15 @@ new1:
 				//这时候通过两个块来计算出原oep值
 				//尾节开始代码的的e9 xx 00 00 00 00			
 
-				pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 + backvalue2 - pinh->OptionalHeader.ImageBase;
+				if (calc_backupvaluemethod == 1)
+				{
+					pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 + backvalue2 - pinh->OptionalHeader.ImageBase;
+				}
+				if (calc_backupvaluemethod == 2)
+				{
+					pinh->OptionalHeader.AddressOfEntryPoint = (backvalue1 ^ backvalue2) - pinh->OptionalHeader.ImageBase;
+				}
+				
 
 #if DEBUG
 				printf("重新设置PE头中的OEP为%x\n", pinh->OptionalHeader.AddressOfEntryPoint);
@@ -1284,29 +1305,29 @@ end1:
 
 int main()
 {
-	char szFile[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
-	ScanFile(szFile, FALSE);
+	/*char szFile[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
+	ScanFile(szFile, FALSE);*/
 
 
-	//char szFilePath[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
-	//WIN32_FIND_DATA data;
-	//HANDLE hFind;
-	//char cFullPath[260];
-	//char cNewPath[260];
-	//sprintf_s(cFullPath, "%s\\*.*", szFilePath);
-	//hFind = FindFirstFile(cFullPath, &data);
-	//do
-	//{
-	//  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
-	//  {
-	//		continue;
- //     }
-	//  // MessageBox(NULL,data.cFileName,"Look",0);
-	//  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
-	//  printf("修复文件%s\n", data.cFileName);
-	//  ScanFile(cFullPath,FALSE);
-	//  printf("\n\n");
-	//} while (FindNextFile(hFind, &data));
+	char szFilePath[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
+	WIN32_FIND_DATA data;
+	HANDLE hFind;
+	char cFullPath[260];
+	char cNewPath[260];
+	sprintf_s(cFullPath, "%s\\*.*", szFilePath);
+	hFind = FindFirstFile(cFullPath, &data);
+	do
+	{
+	  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
+	  {
+			continue;
+      }
+	  // MessageBox(NULL,data.cFileName,"Look",0);
+	  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
+	  printf("修复文件%s\n", data.cFileName);
+	  ScanFile(cFullPath,FALSE);
+	  printf("\n\n");
+	} while (FindNextFile(hFind, &data));
 
 
 	return 0;
