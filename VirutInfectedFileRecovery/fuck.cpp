@@ -428,320 +428,266 @@ new1:
 				goto end4;
 			}
 
-			BYTE* pcode1 = data + RVA2FO(pish, numOfSections, CodeEntry1_RVA);
-			DWORD block2_RVA, block3_RVA, block4_RVA;
+
+			//新增的情况, 就是可能会有五块, 然后其中有一块是全垃圾代码. 这一垃圾块的位置可能是任一顺序
+			BYTE* pcode = data + RVA2FO(pish, numOfSections, CodeEntry1_RVA);
+			int jmptimes = 0;
+			int prevRVA = CodeEntry1_RVA, nextRVA = 0;
+			DWORD block_RVA[5] = { 0 };
 			int block1_confirmed, block2_confirmed, block3_confirmed, block4_confirmed;
 			int index = -1;
 			int indexAll[10] = { 0 };
-			for (int i = 0; i < 0x30;)   //第一块搜索
-			{
-				if (*(pcode1 + i) >= 0xb8 && *(pcode1 + i) <= 0xba)
-				{
-					if (CodeEntry2_base_size <= 0x10000)
-					{
-						CodeEntry2_base_size = *(DWORD*)(pcode1 + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
-						CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode1 + i + 1);
-						block1_confirmed = 1;                                        //有干扰项.虽然此处yyy大于0x10000直接被排除, 但为了保险, 还是用几块同时确定比较保险.
-						//一般可以确认是第一条指令了 B8/B9/BA dd_virut_code_length
-						//分别是mov eax / ecx / edx dd_virut_code_length
-						indexAll[numofblock1_trueins] = *(pcode1 + i) - 0xb8;
-						++numofblock1_trueins;
-						char regname[3][4] = { "eax","edx","ecx" };
-#if DEBUG
-						printf("block1中有效指令找到\n");
-						printf("尾节块大小为%x\n 入口节尾病毒使用的寄存器为%s\n", CodeEntry2_base_sizeAll[numofblock1_trueins-1], regname[numofblock1_trueins-1]);
-#endif // DEBUG
-					}
-				}
-				//eb比较容易误判, e9还行..  这个误判可能性很大, 所以我还是得去找个反汇编引擎来用, 用于得到当前指针处的指令长度,这样就没误差了..
-				//把E9放EB前面, 会更好一些
-				if (*(pcode1 + i) == 0xE9)
-				{
-
-					if (block1_confirmed == 1)
-					{
-#if DEBUG
-						printf("block1中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif
-						goto end4;
-					}
-
-					block2_RVA = CodeEntry1_RVA + i + 5 + *(int*)(pcode1 + i + 1);
-					break;
-				}
-
-				if (*(pcode1 + i) == 0xeb)
-				{
-
-					if (block1_confirmed == 1)
-					{
-#if DEBUG
-						printf("block1中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif // DEBUG
-						goto end4;
-					}
-
-
-					block2_RVA = CodeEntry1_RVA + i + 2 + *(int8_t*)(pcode1 + i + 1);
-					break;
-				}
-
-				int count = cs_disasm(handle, pcode1 + i, 0xf, 0, 1, &insn);
-				if (count == 1)
-				{
-					i += insn[0].size;
-					cs_free(insn, count);
-				}
-				else
-				{
-#if DEBUG
-					printf("block1中找block2位置出错\n");
-#endif // DEBUG
-
-					goto end4;
-				}
-			}
-
-			BYTE* pcode2 = data + RVA2FO(pish, numOfSections, block2_RVA);
 			DWORD key1 = 0;
 			DWORD key1All[10] = { 0 };
 			int method = -1; //1表示add, 0表示sub  初始为-1,这样出现意外情况时,使其出错
 			int methodAll[10] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
 			int indexAll_Block2[10] = { 0 };
 
-
-			for (int i = 0; i < 0x30;)  //第二块搜索
+			while (1)
 			{
-				if (*(pcode2 + i) == 0x81 && (*(pcode2 + i + 1) == 0x80 || *(pcode2 + i + 1) == 0x81 ||
-					*(pcode2 + i + 1) == 0x82 || *(pcode2 + i + 1) == 0xa8 || *(pcode2 + i + 1) == 0xa9 || *(pcode2 + i + 1) == 0xaa))
+				block_RVA[jmptimes] = prevRVA;
+
+				for (int i = 0; i < 0x30;)
 				{
-					if(*(int*)(pcode2 + i + 2) - pinh->OptionalHeader.ImageBase>=pLastSec->VirtualAddress && 
-						*(int*)(pcode2 + i + 2) - pinh->OptionalHeader.ImageBase<pLastSec->VirtualAddress+pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
-
-					block2_confirmed = 1;
-					CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode2 + i + 2) - pinh->OptionalHeader.ImageBase;
-					key1All[numofblock2_trueins] = *(int*)(pcode2 + i + 6);
-					const char *damn;
-
-					if ((*(pcode2 + i + 1) - 0x80 >= 0) && (*(pcode2 + i + 1) - 0x80) <= 2)
+					if (jmptimes == 0 || jmptimes == 1)
 					{
-						indexAll_Block2[numofblock2_trueins] = *(pcode2 + i + 1) - 0x80;
-						methodAll[numofblock2_trueins] = 1;
-						damn = "加法";
-					}
-					if ((*(pcode2 + i + 1) - 0xa8 >= 0) && (*(pcode2 + i + 1) - 0xa8) <= 2)
-					{
-						indexAll_Block2[numofblock2_trueins] = *(pcode2 + i + 1) - 0xa8;
-						methodAll[numofblock2_trueins] = 0;
-						damn = "减法";
-					}
-
+						if (*(pcode + i) >= 0xb8 && *(pcode + i) <= 0xba)
+						{
+							if (CodeEntry2_base_size <= 0x10000)
+							{
+								CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
+								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
+								block1_confirmed = 1;                                        //有干扰项.虽然此处yyy大于0x10000直接被排除, 但为了保险, 还是用几块同时确定比较保险.
+																							 //一般可以确认是第一条指令了 B8/B9/BA dd_virut_code_length
+																							 //分别是mov eax / ecx / edx dd_virut_code_length
+								indexAll[numofblock1_trueins] = *(pcode + i) - 0xb8;
+								++numofblock1_trueins;
+								char regname[3][4] = { "eax","edx","ecx" };
 #if DEBUG
-					printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins],CodeEntry2_base_RVAAll[numofblock2_trueins]);
+								printf("block1中有效指令找到\n");
+								printf("尾节块大小为%x\n 入口节尾病毒使用的寄存器为%s\n", CodeEntry2_base_sizeAll[numofblock1_trueins - 1], regname[numofblock1_trueins - 1]);
 #endif // DEBUG
-					++numofblock2_trueins;
+							}
+						}
+					}
 
-				}
-				if (*(pcode2 + i) == 0xE9)
-				{
-
-					if (block2_confirmed == 1)
+					if (jmptimes == 1 || jmptimes == 2)
 					{
+						if (*(pcode + i) == 0x81 && (*(pcode + i + 1) == 0x80 || *(pcode + i + 1) == 0x81 ||
+							*(pcode + i + 1) == 0x82 || *(pcode + i + 1) == 0xa8 || *(pcode + i + 1) == 0xa9 || *(pcode + i + 1) == 0xaa))
+						{
+
+							if (*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+								*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+							{
+								block2_confirmed = 1;
+								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
+								key1All[numofblock2_trueins] = *(int*)(pcode + i + 6);
+								const char *damn;
+
+								if ((*(pcode + i + 1) - 0x80 >= 0) && (*(pcode + i + 1) - 0x80) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x80;
+									methodAll[numofblock2_trueins] = 1;
+									damn = "加法";
+								}
+								if ((*(pcode + i + 1) - 0xa8 >= 0) && (*(pcode + i + 1) - 0xa8) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0xa8;
+									methodAll[numofblock2_trueins] = 0;
+									damn = "减法";
+								}
 #if DEBUG
-						printf("block2中有效指令找到\n");
+								printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
 #endif // DEBUG
+								++numofblock2_trueins;
+							}
+
+
+						}
+					}
+
+					if (jmptimes == 2 || jmptimes == 3)
+					{
+						if (*(pcode + i) == 0x83 && *(pcode + i + 2) == 4 &&
+							(*(pcode + i + 1) == 0xe8 || *(pcode + i + 1) == 0xe9 || *(pcode + i + 1) == 0xea))
+						{
+							index = *(pcode + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
+							block3_confirmed = 1;
+						}
+					}
+
+					if (jmptimes == 3 || jmptimes == 4)
+					{
+						if (*(pcode + i) == 0x0f && *(pcode + i + 1) == 0x83)  //长jnb
+						{							
+							block4_confirmed = 1;
+						}
+						if (*(pcode + i) == 0x73)   //短jnb
+						{							
+							block4_confirmed = 1;
+						}
+					}
+
+					if (*(pcode + i) == 0xE9)
+					{
+						if (jmptimes == 2)  //这里用==没问题, 因为都是一次一次往上加的..后面尾部解析的nume8call就不行.. 得用>=
+						{
+							if (block1_confirmed == 0)
+							{
+#if DEBUG
+								printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif
+								goto end4;
+							}
+						}
+
+						if (jmptimes == 3)
+						{
+							if (block2_confirmed == 0)
+							{
+#if DEBUG
+								printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif // DEBUG
+								goto end4;
+							}
+						}
+
+						if (jmptimes == 4)
+						{
+							if (block3_confirmed == 0)
+							{
+#if DEBUG
+								printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif // DEBUG
+								goto end4;
+							}
+						}
+						
+
+						nextRVA = prevRVA + i + 5 + *(int*)(pcode + i + 1);
+						if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))  //这是跳转到尾节病毒代码的最终之跳..
+						{
+							if (block1_confirmed&&block2_confirmed&&block3_confirmed&&block4_confirmed)
+							{
+								if (jmptimes == 3 || jmptimes == 4) //现在看的, 就只有4块和5块这两种情况..
+								{
+									CodeEntry2_RVA = nextRVA;
+#if DEBUG
+									printf("尾节病毒代码入口点为%x\n", CodeEntry2_RVA);
+#endif // DEBUG
+									goto oepvir_decode;
+								}
+								else
+								{
+#if DEBUG
+									printf("oep节节尾病毒代码解析错误\n");
+#endif
+									goto end4;
+								}
+							}
+							else
+							{
+#if DEBUG
+								printf("部分oep节尾病毒代码有效指令未找到\n");
+								printf("可能不是virut变种,退出\n");
+#endif // DEBUG
+								goto end4;
+							}
+							
+						}
+						break;
+					}
+					if (*(pcode + i) == 0xeb)
+					{
+						if (jmptimes == 2)  //这里用==没问题, 因为都是一次一次往上加的..后面尾部解析的nume8call就不行.. 得用>=
+						{
+							if (block1_confirmed == 0)
+							{
+#if DEBUG
+								printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif
+								goto end4;
+							}
+						}
+
+						if (jmptimes == 3)
+						{
+							if (block2_confirmed == 0)
+							{
+#if DEBUG
+								printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif // DEBUG
+								goto end4;
+							}
+						}
+
+						if (jmptimes == 4)
+						{
+							if (block3_confirmed == 0)
+							{
+#if DEBUG
+								printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
+								printf("可能不是virut变种,退出\n");
+#endif // DEBUG
+								goto end4;
+							}
+						}
+
+						nextRVA = prevRVA + i + 2 + *(int8_t*)(pcode + i + 1);
+						break;
+					}
+
+					int count = cs_disasm(handle, pcode + i, 0xf, 0, 1, &insn);
+					if (count == 1)
+					{
+						i += insn[0].size;
+						cs_free(insn, count);
+						if (i >= 0x100)
+						{
+#if DEBUG
+							printf("解析oep节节尾跳转出错\n");
+#endif // DEBUG
+
+							goto end4;
+						}
 					}
 					else
 					{
 #if DEBUG
-						printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
-						printf("可能不是virut变种,退出\n");
+						printf("解析oep节节尾跳转出错\n");
 #endif // DEBUG
+
 						goto end4;
 					}
-
-
-					block3_RVA = block2_RVA + i + 5 + *(int*)(pcode2 + i + 1);
-					break;
 				}
+				pcode = data + RVA2FO(pish, numOfSections, nextRVA);
+				prevRVA = nextRVA;
+				++jmptimes;
 
-				if (*(pcode2 + i) == 0xeb)
-				{
-
-					if (block2_confirmed == 1)
-					{
-#if DEBUG
-						printf("block1中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif // DEBUG
-						goto end4;
-					}
-
-
-					block3_RVA = block2_RVA + i + 2 + *(int8_t*)(pcode2 + i + 1);
-					break;
-				}
-
-				int count = cs_disasm(handle, pcode2 + i, 0xf, 0, 1, &insn);
-				if (count == 1)
-				{
-					i += insn[0].size;
-					cs_free(insn, count);
-				}
-				else
+				if (jmptimes >= 5)   //最多只可能跳4次, 然后不会经过这儿
 				{
 #if DEBUG
-					printf("找block3位置出错\n");
-#endif // DEBUG
-
+					printf("oep节尾病毒代码跳转死循环, 退出\n");
+#endif
 					goto end4;
 				}
+
 			}
-			BYTE* pcode3 = data + RVA2FO(pish, numOfSections, block3_RVA);
-			for (int i = 0; i < 0x30;)  //第三块搜索
+
+			
+oepvir_decode:
+
+			CodeEntry1_Base_RVA = block_RVA[0];
+			for (int j = 0; j < jmptimes; ++j)
 			{
-				if (*(pcode3 + i) == 0xE9)
-				{
-
-					if (block3_confirmed == 1)
-					{
-#if DEBUG
-						printf("block3中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif // DEBUG
-						goto end4;
-					}
-
-
-					block4_RVA = block3_RVA + i + 5 + *(int*)(pcode3 + i + 1);
-					break;
-				}
-				if (*(pcode3 + i) == 0xeb)
-				{
-
-					if (block3_confirmed == 1)
-					{
-#if DEBUG
-						printf("block3中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif // DEBUG
-						goto end4;
-					}
-
-					block4_RVA = block3_RVA + i + 2 + *(int8_t*)(pcode3 + i + 1);
-					break;
-				}
-
-				if (*(pcode3 + i) == 0x83 && *(pcode3 + i + 2) == 4 &&
-					(*(pcode3 + i + 1) == 0xe8 || *(pcode3 + i + 1) == 0xe9 || *(pcode3 + i + 1) == 0xea))
-				{
-					index = *(pcode3 + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
-					block3_confirmed = 1;
-				}
-
-				int count = cs_disasm(handle, pcode3 + i, 0xf, 0, 1, &insn);
-				if (count == 1)
-				{
-					i += insn[0].size;
-					cs_free(insn, count);
-				}
-				else
-				{
-#if DEBUG
-					printf("找block4位置出错\n");
-#endif // DEBUG
-
-					goto end4;
-				}
+				CodeEntry1_Base_RVA = min(CodeEntry1_Base_RVA, block_RVA[j]);     //获取最小地址
 			}
-
-			BYTE* pcode4 = data + RVA2FO(pish, numOfSections, block4_RVA);
-			for (int i = 0; i < 0x30;)  //第四块搜索
-			{
-				if (*(pcode4 + i) == 0x0f && *(pcode4 + i + 1) == 0x83)  //长jnb
-				{
-					block4_confirmed = 1;
-				}
-				if (*(pcode4 + i) == 0x73)   //短jnb
-				{
-					block4_confirmed = 1;
-				}
-
-				if (*(pcode4 + i) == 0xE9)
-				{
-
-					if (block4_confirmed == 1)
-					{
-#if DEBUG
-						printf("block4中有效指令找到\n");
-#endif // DEBUG
-					}
-					else
-					{
-#if DEBUG
-						printf("block4中有效指令未找到, 0x20有标记但没找到block4中有效指令\n");
-						printf("可能不是virut变种,退出\n");
-#endif // DEBUG
-						goto end4;
-					}
-
-					CodeEntry2_RVA = block4_RVA + i + 5 + *(int*)(pcode4 + i + 1);
-
-#if DEBUG
-					printf("尾节病毒代码入口点为%x\n", CodeEntry2_RVA);
-#endif // DEBUG
-
-					break;
-				}
-				int count = cs_disasm(handle, pcode4 + i, 0xf, 0, 1, &insn);
-				if (count == 1)
-				{
-					i += insn[0].size;
-					cs_free(insn, count);
-				}
-				else
-				{
-#if DEBUG
-					printf("block4找尾节病毒代码入口位置出错");
-#endif // DEBUG
-
-					goto end4;
-				}
-			}
-
-			CodeEntry1_Base_RVA = min(min(CodeEntry1_RVA, block2_RVA), min(block3_RVA, block4_RVA));  //获取最小地址
 
 			//对尾节数据进行恢复操作:
 			//首先先确定正确的数据:
