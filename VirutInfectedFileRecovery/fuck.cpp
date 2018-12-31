@@ -140,7 +140,9 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	BOOL AdjustSize = FALSE;
 	BOOL isValidSectionTable = FALSE;
 	int virutkind = -1;
-	int calc_backupvaluemethod = 0;       //1 代表加法  2代表xor
+	int calc_backupvaluemethod = 0;       //1 代表加法  2代表xor 3代表减法
+	int oepsearchpos = 0, oepremainbytes = 0;
+	BYTE *pcode = NULL;
 
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
@@ -352,12 +354,16 @@ new1:
 #if DEBUG
 			printf("入口点没被更改,进行hook点1搜索\n");
 #endif // DEBUG
-			BYTE *pcode = data + RVA2FO(pish, numOfSections, oep);
+			pcode = data + RVA2FO(pish, numOfSections, oep);
+			oepremainbytes = pOepSec->PointerToRawData + pOepSec->SizeOfRawData - RVA2FO(pish, numOfSections, oep);
+			int i;
+			
 
-			int i = 0;
-			for (; pcode + i < data + pOepSec->PointerToRawData + pOepSec->SizeOfRawData - 0x10;)            //这里-0x10影响应该不是很大, 主要为了避免后面出异常的情况
+research_hook1:
+			CodeEntry1_RVA = 0;
+			for (i = oepsearchpos; pcode + i < data + pOepSec->PointerToRawData + pOepSec->SizeOfRawData - 0x10;)            //这里-0x10影响应该不是很大, 主要为了避免后面出异常的情况
 			{
-				if (*(pcode + i) == 0xe9 || *(pcode + i) == 0xe8)  //这里, 只有E9      //部分未找到hook点补个E8 call试试
+				if (*(pcode + i) == 0xe9)  //这里, 只有E9
 				{
 					int jmplen = *(int*)(pcode + i + 1);
 
@@ -371,6 +377,7 @@ new1:
 						{
 							hook1pos_RVA = oep + i;
 							CodeEntry1_RVA = dest;
+							oepsearchpos = i + 5; //如果后面解析oepblock失败, 那么就会跳回来继续搜索
 #if DEBUG
 							printf("HOOK点1跳到了OEP节尾: hook点1 %x 入口点节尾%x\n", hook1pos_RVA, dest);
 #endif // DEBUG
@@ -380,11 +387,12 @@ new1:
 					//说明跳到了尾节
 					if (dest >= pLastSec->VirtualAddress && dest < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)
 					{
+						hook1pos_RVA = oep + i;
+						CodeEntry2_RVA = dest;
 #if DEBUG
 						printf("HOOK点1跳到了尾节: hook点1%x 节尾%x\n", hook1pos_RVA, dest);
 #endif // DEBUG
-						hook1pos_RVA = oep + i;
-						CodeEntry2_RVA = dest;
+						
 						break;
 					}
 				}
@@ -453,9 +461,9 @@ new1:
 					{
 						if (*(pcode + i) >= 0xb8 && *(pcode + i) <= 0xba)
 						{
-							if (CodeEntry2_base_size <= 0x10000)
-							{
-								CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
+							CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
+							if (CodeEntry2_base_size <= 0x7000 && CodeEntry2_base_size >= 0x3000)
+							{							
 								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
 								block1_confirmed = 1;                                        //有干扰项.虽然此处yyy大于0x10000直接被排除, 但为了保险, 还是用几块同时确定比较保险.
 																							 //一般可以确认是第一条指令了 B8/B9/BA dd_virut_code_length
@@ -483,7 +491,7 @@ new1:
 								block2_confirmed = 1;
 								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
 								key1All[numofblock2_trueins] = *(int*)(pcode + i + 6);
-								const char *damn;
+								const char *damn = "不知道";
 
 								if ((*(pcode + i + 1) - 0x80 >= 0) && (*(pcode + i + 1) - 0x80) <= 2)
 								{
@@ -537,9 +545,18 @@ new1:
 							{
 #if DEBUG
 								printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
-								printf("可能不是virut变种,退出\n");
+								
 #endif
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
 							}
 						}
 
@@ -549,9 +566,18 @@ new1:
 							{
 #if DEBUG
 								printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
-								printf("可能不是virut变种,退出\n");
 #endif // DEBUG
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
+								
 							}
 						}
 
@@ -561,9 +587,18 @@ new1:
 							{
 #if DEBUG
 								printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
-								printf("可能不是virut变种,退出\n");
 #endif // DEBUG
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
+								
 							}
 						}
 						
@@ -593,8 +628,17 @@ new1:
 							{
 #if DEBUG
 								printf("部分oep节尾病毒代码有效指令未找到\n");
-								printf("可能不是virut变种,退出\n");
 #endif // DEBUG
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
 								goto end4;
 							}
 							
@@ -609,9 +653,18 @@ new1:
 							{
 #if DEBUG
 								printf("block1中有效指令未找到, 0x20有标记但没找到block1中有效指令\n");
-								printf("可能不是virut变种,退出\n");
 #endif
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
+								
 							}
 						}
 
@@ -621,21 +674,41 @@ new1:
 							{
 #if DEBUG
 								printf("block2中有效指令未找到, 0x20有标记但没找到block2中有效指令\n");
-								printf("可能不是virut变种,退出\n");
+								
 #endif // DEBUG
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
+								
 							}
 						}
 
-						if (jmptimes == 4)
+						if (jmptimes == 4)         //这个其实不可能会在这儿了.. 因为最后一条必定是E9跳的.
 						{
 							if (block3_confirmed == 0)
 							{
 #if DEBUG
 								printf("block3中有效指令未找到, 0x20有标记但没找到block3中有效指令\n");
-								printf("可能不是virut变种,退出\n");
+								
 #endif // DEBUG
-								goto end4;
+								if (oepsearchpos < oepremainbytes - 0x10)
+								{
+									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+									goto research_hook1;
+								}
+								else
+								{
+									printf("所有均已搜完,非virut,退出\n");
+									goto end4;
+								}
+								
 							}
 						}
 
@@ -648,13 +721,21 @@ new1:
 					{
 						i += insn[0].size;
 						cs_free(insn, count);
-						if (i >= 0x100)
+						if (i >= 0x30)
 						{
 #if DEBUG
 							printf("解析oep节节尾跳转出错\n");
 #endif // DEBUG
-
-							goto end4;
+							if (oepsearchpos < oepremainbytes - 0x10)
+							{
+								printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+								goto research_hook1;
+							}
+							else
+							{
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
+							}
 						}
 					}
 					else
@@ -663,7 +744,16 @@ new1:
 						printf("解析oep节节尾跳转出错\n");
 #endif // DEBUG
 
-						goto end4;
+						if (oepsearchpos < oepremainbytes - 0x10)
+						{
+							printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+							goto research_hook1;
+						}
+						else
+						{
+							printf("所有均已搜完,非virut,退出\n");
+							goto end4;
+						}
 					}
 				}
 				pcode = data + RVA2FO(pish, numOfSections, nextRVA);
@@ -675,7 +765,17 @@ new1:
 #if DEBUG
 					printf("oep节尾病毒代码跳转死循环, 退出\n");
 #endif
-					goto end4;
+
+					if (oepsearchpos < oepremainbytes - 0x10)
+					{
+						printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
+						goto research_hook1;
+					}
+					else
+					{
+						printf("所有均已搜完,非virut,退出\n");
+						goto end4;
+					}
 				}
 
 			}
@@ -800,6 +900,17 @@ oepvir_decode:
 							sig_confirmed2 = 1;
 							backvalue2 = *(int*)(pLastCode + i + 4);
 							calc_backupvaluemethod = 2;
+#if DEBUG
+							printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+						}
+
+						if (*(pLastCode + i) == 0x81 && *(pLastCode + i + 1) == 0x6c
+							&& *(pLastCode + i + 2) == 0x24 && *(pLastCode + i + 3) == 0x20)
+						{
+							sig_confirmed2 = 1;
+							backvalue2 = *(int*)(pLastCode + i + 4);
+							calc_backupvaluemethod = 3;
 #if DEBUG
 							printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
@@ -1146,6 +1257,10 @@ oepvir_decode:
 				{
 					pinh->OptionalHeader.AddressOfEntryPoint = (backvalue1 ^ backvalue2) - pinh->OptionalHeader.ImageBase;
 				}
+				if (calc_backupvaluemethod == 3)
+				{
+					pinh->OptionalHeader.AddressOfEntryPoint = (backvalue1 - backvalue2) - pinh->OptionalHeader.ImageBase;
+				}
 				
 
 #if DEBUG
@@ -1251,29 +1366,29 @@ end1:
 
 int main()
 {
-	/*char szFile[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
-	ScanFile(szFile, FALSE);*/
+	char szFile[260] = { "C:\\Users\\Mike\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
+	ScanFile(szFile, FALSE);
 
 
-	char szFilePath[260] = { "C:\\Users\\bj2017\\Documents\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
-	WIN32_FIND_DATA data;
-	HANDLE hFind;
-	char cFullPath[260];
-	char cNewPath[260];
-	sprintf_s(cFullPath, "%s\\*.*", szFilePath);
-	hFind = FindFirstFile(cFullPath, &data);
-	do
-	{
-	  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
-	  {
-			continue;
-      }
-	  // MessageBox(NULL,data.cFileName,"Look",0);
-	  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
-	  printf("修复文件%s\n", data.cFileName);
-	  ScanFile(cFullPath,FALSE);
-	  printf("\n\n");
-	} while (FindNextFile(hFind, &data));
+	//char szFilePath[260] = { "C:\\Users\\Mike\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
+	//WIN32_FIND_DATA data;
+	//HANDLE hFind;
+	//char cFullPath[260];
+	//char cNewPath[260];
+	//sprintf_s(cFullPath, "%s\\*.*", szFilePath);
+	//hFind = FindFirstFile(cFullPath, &data);
+	//do
+	//{
+	//  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
+	//  {
+	//		continue;
+ //     }
+	//  // MessageBox(NULL,data.cFileName,"Look",0);
+	//  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
+	//  printf("修复文件%s\n", data.cFileName);
+	//  ScanFile(cFullPath,FALSE);
+	//  printf("\n\n");
+	//} while (FindNextFile(hFind, &data));
 
 
 	return 0;
