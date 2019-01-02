@@ -319,6 +319,9 @@ new1:
 		}
 
 		pOepSec = FindRVASection(pish, numOfSections, oep);
+		pcode = data + RVA2FO(pish, numOfSections, oep);
+		oepremainbytes = pOepSec->PointerToRawData + pOepSec->SizeOfRawData - RVA2FO(pish, numOfSections, oep);
+
 		if (pOepSec->Misc.VirtualSize == pOepSec->SizeOfRawData)  //相等, 则说明有插入入口节节尾病毒代码
 		{
 #if DEBUG
@@ -354,13 +357,13 @@ new1:
 #if DEBUG
 			printf("入口点没被更改,进行hook点1搜索\n");
 #endif // DEBUG
-			pcode = data + RVA2FO(pish, numOfSections, oep);
-			oepremainbytes = pOepSec->PointerToRawData + pOepSec->SizeOfRawData - RVA2FO(pish, numOfSections, oep);
-			int i;
 			
-
-research_hook1:
+			
+			
+		research_hook1:
+			int i;
 			CodeEntry1_RVA = 0;
+			hasHook1 = TRUE;
 			for (i = oepsearchpos; pcode + i < data + pOepSec->PointerToRawData + pOepSec->SizeOfRawData - 0x10;)            //这里-0x10影响应该不是很大, 主要为了避免后面出异常的情况
 			{
 				if (*(pcode + i) == 0xe9)  //这里, 只有E9
@@ -405,10 +408,9 @@ research_hook1:
 				else
 				{
 #if DEBUG
-					printf("找hook点1位置出错\n 可能不是virut,或该样本曾经被部分修复,但未修复完全,导致判断出错\n");
+					printf("反汇编指令失败,跳过当前字节\n");
 #endif // DEBUG
-
-					goto end4;
+					++i;
 				}
 			}
 
@@ -1366,11 +1368,11 @@ end1:
 
 int main()
 {
-	char szFile[260] = { "C:\\Users\\Mike\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
+	char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
 	ScanFile(szFile, FALSE);
 
 
-	//char szFilePath[260] = { "C:\\Users\\Mike\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
+	//char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
 	//WIN32_FIND_DATA data;
 	//HANDLE hFind;
 	//char cFullPath[260];
