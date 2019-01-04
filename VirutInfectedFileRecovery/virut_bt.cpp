@@ -362,7 +362,7 @@ static DWORD Find_Virut_Jump(CAntiVirEngine *AVE, BYTE* pBuffer, DWORD Len, DWOR
 	return RC_DECODE_NULL;
 }
 
-// 遍历指令流，获得病毒下一个入口，加密方法（+、-、^），加密长度，起始地址。
+// 遍历指令流，获得病毒下一个入口，加密方法（+、-、^），加密长度，起始地址。        这是遍历Oep节尾的病毒代码的..  这里处理的应该包括了新一代的..
 // dwMisc(0/1/2/3) = VirEntry，Method，dwKey，ReadLen，ReadPos
 static int Find_Virut_Encrypt(CAntiVirEngine *AVE, BYTE* pBuffer, DWORD Len, DWORD CodePos, DWORD BaseAddress)
 {
