@@ -5,6 +5,24 @@
 
 #define DEBUG 1
 
+int checksecname(char* tempname)
+{
+	int l = 0;
+	bool flag;
+	do
+	{
+		flag = tempname[l] >= 0x61 && tempname[l] <= 0x7a;
+		++l;
+	} while (flag);
+
+	if (l == 7 + 1)
+	{
+		return 1;
+	}
+	return 0;
+
+}
+
 DWORD RVA2FO(PIMAGE_SECTION_HEADER pish, int nNumOfSections, DWORD dwRVA)
 {
 	int i = 0;
@@ -89,8 +107,8 @@ DWORD sig_confirmed_x20[] =
 
 //-1 代表未知
 //0  代表不是
-//1  代表0x20大类virut变种
-//2  代表0x24大类virut变种
+//1  代表旧一代0x1e8 0x3d34  有微变变种
+//2  代表新一代0x300 0x66e4  有微变变种
 //3  代表0x28大类virut变种
 //4  代表0x2C大类virut变种
 //5  代表0x30大类virut变种
@@ -270,7 +288,43 @@ new1:
 		}
 		if (virutkind == -1)
 		{
-			printf("可能为未知变种, 开始尝试处理\n");
+			PIMAGE_SECTION_HEADER pjunk = &pish[pinh->FileHeader.NumberOfSections - 1];
+			char tempname[8] = { 0 };
+			memcpy(tempname, pjunk->Name, 8);
+			
+			if (checksecname(tempname))
+			{
+				if (pjunk->Misc.VirtualSize == 0x1000 && pjunk->Characteristics == 0xc000'0000 && pjunk->SizeOfRawData == 0)
+				{
+					virutkind = 2;
+					printf("确认为已知变种2, 开始进行处理\n");
+
+					//先修复PE头的问题. 
+					// | xx | 00000   ==>  |xx | yy
+					// | xx | kkkk    ==>  |xx|yy|kkkk
+					//这个貌似不大好判断, 还是不搬了..
+					pinh->OptionalHeader.SizeOfImage -= pinh->OptionalHeader.SectionAlignment;
+					memset(pjunk, 0, 0x28);
+					pinh->FileHeader.NumberOfSections -= 1;
+
+#if DEBUG
+					printf("清除垃圾区段数据成功,SizeOfImage减小%x\n", pinh->OptionalHeader.SectionAlignment);
+#endif
+					
+					//因为rawsize是0, 所以貌似不会计算到文件大小中去, 所以也不用添加相关逻辑..
+				}
+				else
+				{
+					printf("多次感染样本, 无法修复, 退出\n");
+					goto end4;
+				}
+			}
+			else
+			{
+				printf("未知样本, 尝试处理\n");
+			}
+
+
 		}	
 #endif // DEBUG
 		if (bScanOnly)
@@ -322,6 +376,15 @@ new1:
 		}
 
 		pOepSec = FindRVASection(pish, numOfSections, oep);
+
+		if (pOepSec == NULL)
+		{
+#if DEBUG
+			printf("找不到入口点所属于的节,退出\n");
+			goto end4;
+#endif
+		}
+
 		pcode = data + RVA2FO(pish, numOfSections, oep);
 		oepremainbytes = pOepSec->PointerToRawData + pOepSec->SizeOfRawData - RVA2FO(pish, numOfSections, oep);
 
@@ -446,8 +509,8 @@ new1:
 			BYTE* pcode = data + RVA2FO(pish, numOfSections, CodeEntry1_RVA);
 			int jmptimes = 0;
 			int prevRVA = CodeEntry1_RVA, nextRVA = 0;
-			DWORD block_RVA[5] = { 0 };
-			int block1_confirmed, block2_confirmed, block3_confirmed, block4_confirmed;
+			DWORD block_RVA[5+1] = { 0 };  //尾部的0作为一个标记
+			int block1_confirmed = 0, block2_confirmed, block3_confirmed, block4_confirmed;
 			int index = -1;
 			int indexAll[10] = { 0 };
 			DWORD key1 = 0;
@@ -483,7 +546,7 @@ new1:
 							}
 						}
 
-						if (*(pcode + i) == 0x68 && *(pcode + i + 5) == 0xf8 && *(pcode + i + 6) >= 0x58 && *(pcode + i + 6) <= 0x5a)
+						if (*(pcode + i) == 0x68 && *(pcode + i + 5) == 0xf8 && *(pcode + i + 6) >= 0x58 && *(pcode + i + 6) <= 0x5a)  //push dd ;clc ;pop
 						{
 							CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);
 
@@ -502,11 +565,27 @@ new1:
 
 							}
 
-							
-
-
 						}
 
+						if (*(pcode + i) == 0x68 && *(pcode + i + 5) >= 0x58 && *(pcode + i + 5) <= 0x5a)  //push dd pop
+						{
+							CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);
+
+							if (CodeEntry2_base_size <= 0x8000 && CodeEntry2_base_size >= 0x3000)
+							{
+								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
+								virutkind = 3;
+								block1_confirmed = 1;
+								indexAll[numofblock1_trueins] = *(pcode + i + 5) - 0x58;
+								++numofblock1_trueins;
+								char regname[3][4] = { "eax","ecx","edx" };
+#if DEBUG
+								printf("block1中有效指令找到\n");
+								printf("尾节块大小为%x\n 入口节尾病毒使用的寄存器为%s\n", CodeEntry2_base_sizeAll[numofblock1_trueins - 1], regname[numofblock1_trueins - 1]);
+#endif // DEBUG
+
+							}
+						}
 					}
 
 					if (jmptimes == 1 || jmptimes == 2)
@@ -576,6 +655,38 @@ new1:
 							}
 						}
 
+						if (*(pcode + i) == 0x66 && *(pcode + i + 1) == 0x81 && (*(pcode + i + 2) == 0x80 || *(pcode + i + 2) == 0x81 ||
+							*(pcode + i + 2) == 0x82 || *(pcode + i + 2) == 0xa8 || *(pcode + i + 2) == 0xa9 || *(pcode + i + 2) == 0xaa))
+						{
+							if (*(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+								*(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+							{
+								block2_confirmed = 1;
+								virutkind = 3;  //可以确认是半新一代
+								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase;
+								key1All[numofblock2_trueins] = *(WORD*)(pcode + i + 7);
+								const char *damn = "不知道";
+
+								if ((*(pcode + i + 2) - 0x80 >= 0) && (*(pcode + i + 2) - 0x80) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x90;
+									methodAll[numofblock2_trueins] = 1;
+									damn = "加法add";
+								}
+								if ((*(pcode + i + 2) - 0xa8 >= 0) && (*(pcode + i + 2) - 0xa8) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x98;
+									methodAll[numofblock2_trueins] = 0;
+									damn = "减法sub";
+								}
+#if DEBUG
+								printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
+#endif // DEBUG
+								++numofblock2_trueins;
+
+							}
+						}
+
 					}
 
 					if (jmptimes == 2 || jmptimes == 3)
@@ -598,11 +709,11 @@ new1:
 
 					if (jmptimes == 3 || jmptimes == 4)       //这个block4的confirmed让人有点不大放心, 感觉这个似乎有必要那些jcc全部给他加上, 不过手头的变种又暂时没发现需要的..
 					{                                         //或者干脆取消它就完了.
-						if (*(pcode + i) == 0x0f && (*(pcode + i + 1) == 0x83|| *(pcode + i + 1) == 0x8d))  //长jnb  jge
+						if (*(pcode + i) == 0x0f && (*(pcode + i + 1) >= 0x80&& *(pcode + i + 1) <= 0x8f))  //长jnb  jge
 						{							
 							block4_confirmed = 1;
 						}
-						if (*(pcode + i) == 0x73 || *(pcode + i) == 0x7d)   //短jnb jge
+						if (*(pcode + i) >= 0x70 && *(pcode + i) <= 0x7f)   //短jnb jge     //好了, 不管了, 反正我给他全加上了..
 						{							
 							block4_confirmed = 1;
 						}
@@ -624,11 +735,8 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
 							}
 						}
 
@@ -644,11 +752,8 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
 								
 							}
 						}
@@ -665,11 +770,8 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
 								
 							}
 						}
@@ -731,12 +833,10 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
 								
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
+														
 							}
 						}
 
@@ -753,11 +853,8 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
 								
 							}
 						}
@@ -775,11 +872,8 @@ new1:
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								else
-								{
-									printf("所有均已搜完,非virut,退出\n");
-									goto end4;
-								}
+								printf("所有均已搜完,非virut,退出\n");
+								goto end4;
 								
 							}
 						}
@@ -803,11 +897,8 @@ new1:
 								printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 								goto research_hook1;
 							}
-							else
-							{
-								printf("所有均已搜完,非virut,退出\n");
-								goto end4;
-							}
+							printf("所有均已搜完,非virut,退出\n");
+							goto end4;
 						}
 					}
 					else
@@ -821,11 +912,8 @@ new1:
 							printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 							goto research_hook1;
 						}
-						else
-						{
-							printf("所有均已搜完,非virut,退出\n");
-							goto end4;
-						}
+						printf("所有均已搜完,非virut,退出\n");
+						goto end4;
 					}
 				}
 				pcode = data + RVA2FO(pish, numOfSections, nextRVA);
@@ -843,11 +931,8 @@ new1:
 						printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 						goto research_hook1;
 					}
-					else
-					{
-						printf("所有均已搜完,非virut,退出\n");
-						goto end4;
-					}
+					printf("所有均已搜完,非virut,退出\n");
+					goto end4;
 				}
 
 			}
@@ -856,10 +941,11 @@ new1:
 oepvir_decode:
 
 			CodeEntry1_Base_RVA = block_RVA[0];
-			for (int j = 0; j < jmptimes; ++j)
+			for (int j = 0; block_RVA[j] != 0; ++j)
 			{
 				CodeEntry1_Base_RVA = min(CodeEntry1_Base_RVA, block_RVA[j]);     //获取最小地址
 			}
+				
 
 			//对尾节数据进行恢复操作:
 			//首先先确定正确的数据:
@@ -908,7 +994,7 @@ oepvir_decode:
 					}
 				}
 			}
-			else if (virutkind == 2)
+			else if (virutkind == 2 || virutkind == 3)    //2和3共用一种解密方式
 			{
 				WORD *pTemp = (WORD*)(data + RVA2FO(pish, numOfSections, CodeEntry2_base_RVA));
 				for (int i = 0; i <= CodeEntry2_base_size / 2; ++i)
@@ -983,7 +1069,7 @@ refuck:
 								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
 								if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
 								{
-									break;  //符合条件的时候才break; 不符合条件的就当没发生继续
+									break;  //符合条件的时候才break; 不符合条件的就当没发生继续  这个判断没必要了..
 								}
 							}
 
@@ -1109,13 +1195,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1137,13 +1220,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1174,13 +1254,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1202,13 +1279,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1231,13 +1305,10 @@ refuck:
 									++virutkind;
 									goto refuck;
 								}
-								else
-								{
 #if DEBUG
-									printf("可能不是virut样本,退出\n");
+								printf("可能不是virut样本,退出\n");
 #endif
-									goto end4;
-								}
+								goto end4;
 							}
 						}
 						else
@@ -1250,13 +1321,10 @@ refuck:
 								++virutkind;
 								goto refuck;
 							}
-							else
-							{
 #if DEBUG
-								printf("可能不是virut样本,退出\n");
+							printf("可能不是virut样本,退出\n");
 #endif
-								goto end4;
-							}
+							goto end4;
 						}
 					}
 				}
@@ -1364,13 +1432,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1392,13 +1457,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 							
@@ -1420,13 +1482,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1448,13 +1507,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1484,13 +1540,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1512,13 +1565,10 @@ refuck:
 										++virutkind;
 										goto refuck;
 									}
-									else
-									{
 #if DEBUG
-										printf("可能不是virut样本,退出\n");
+									printf("可能不是virut样本,退出\n");
 #endif
-										goto end4;
-									}
+									goto end4;
 								}
 							}
 
@@ -1597,13 +1647,10 @@ refuck:
 									++virutkind;
 									goto refuck;
 								}
-								else
-								{
 #if DEBUG
-									printf("可能不是virut样本,退出\n");
+								printf("可能不是virut样本,退出\n");
 #endif
-									goto end4;
-								}
+								goto end4;
 							}
 						}
 						else
@@ -1616,18 +1663,20 @@ refuck:
 								++virutkind;
 								goto refuck;
 							}
-							else
-							{
 #if DEBUG
-								printf("可能不是virut样本,退出\n");
+							printf("可能不是virut样本,退出\n");
 #endif
-								goto end4;
-							}
+							goto end4;
 						}
 					}
 
-				} //改完了, 出乎意料的简单啊, 可能是我这种跳转解析模式的优越性吧
+				} 
 				
+				if (virutkind == 3)
+				{
+
+				}
+
 
 				pLastCode = data + RVA2FO(pish, numOfSections, nextRVA);
 				prevRVA = nextRVA;
@@ -2017,7 +2066,14 @@ refuck:
 			}
 
 			//清除感染标记
-			*(DWORD*)(data + 0x20) = 0;
+			if (virutkind == 1)
+			{
+				*(DWORD*)(data + 0x20) = 0;
+			}
+			if (virutkind == 2)
+			{
+				pinh->FileHeader.TimeDateStamp = 0;
+			}
 
 		} // end of if codeentry2
 
@@ -2068,29 +2124,29 @@ end1:
 
 int main()
 {
-	char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
-	ScanFile(szFile, FALSE);
+	/*char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
+	ScanFile(szFile, FALSE);*/
 
 
-	//char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
-	//WIN32_FIND_DATA data;
-	//HANDLE hFind;
-	//char cFullPath[260];
-	//char cNewPath[260];
-	//sprintf_s(cFullPath, "%s\\*.*", szFilePath);
-	//hFind = FindFirstFile(cFullPath, &data);
-	//do
-	//{
-	//  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
-	//  {
-	//		continue;
- //     }
-	//  // MessageBox(NULL,data.cFileName,"Look",0);
-	//  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
-	//  printf("修复文件%s\n", data.cFileName);
-	//  ScanFile(cFullPath,FALSE);
-	//  printf("\n\n");
-	//} while (FindNextFile(hFind, &data));
+	char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
+	WIN32_FIND_DATA data;
+	HANDLE hFind;
+	char cFullPath[260];
+	char cNewPath[260];
+	sprintf_s(cFullPath, "%s\\*.*", szFilePath);
+	hFind = FindFirstFile(cFullPath, &data);
+	do
+	{
+	  if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
+	  {
+			continue;
+      }
+	  
+	  sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
+	  printf("修复文件%s\n", data.cFileName);
+	  ScanFile(cFullPath,FALSE);
+	  printf("\n\n");
+	} while (FindNextFile(hFind, &data));
 
 
 	return 0;
