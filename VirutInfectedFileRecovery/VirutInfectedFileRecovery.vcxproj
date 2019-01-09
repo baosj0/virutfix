@@ -121,6 +121,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="fuck.cpp" />
+    <ClCompile Include="virut_sig.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="virut_sig.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

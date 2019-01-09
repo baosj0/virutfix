@@ -18,5 +18,13 @@
     <ClCompile Include="fuck.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="virut_sig.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="virut_sig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
