@@ -13,7 +13,7 @@
 
 
 
-//比较tocmp处的字节, whatwewhat写特征码字符串 
+//比较tocmp处的字节, whatwewant写特征码字符串 
 //仅限十六进制, 大小写无所谓, 空格无所谓, 半字节匹配, 问号匹配任意.
 //例如arg2: "68 ?? ?? ?? ??"
 int sig_cmp(const BYTE* tocmp, const char* whatwewant)
@@ -1142,6 +1142,7 @@ oepvir_decode:
 			int sig_confirmed1 = 0, sig_confirmed2 = 0;   //4个检查差不多够了.
 			int sig_confirmed3 = 0, sig_confirmed4 = 0;
 			int jmptimes = 0;
+			int lastsec_sig_confirmed[10] = { 0 };
 
 refuck:
 			pLastCode = data + RVA2FO(pish, numOfSections, CodeEntry2_RVA);
@@ -1153,6 +1154,7 @@ refuck:
 			backvalue1 = 0, backvalue2 = 0;
 			sig_confirmed1 = 0, sig_confirmed2 = 0;  
 			sig_confirmed3 = 0, sig_confirmed4 = 0;
+			lastsec_sig_confirmed[10] = { 0 };
 			jmptimes = 0;
 
 			while (1)
@@ -1788,6 +1790,181 @@ refuck:
 				{
 					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
 					{
+
+						for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+						{
+							if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)  //找到当前的e8call
+							{
+								for (int k = 0; k < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++k)
+								{
+									if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].confirmed_sig[k]))
+									{
+										lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[k]] = 1;
+									}
+								}
+
+								if (FuckedVirut[virutkind].mypath[j].times) //用于确认有需要碰到指定次数就跳的指令.
+								{
+									if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].sig))
+									{
+										++times;
+										if (times == FuckedVirut[virutkind].mypath[j].times)
+										{
+											if (FuckedVirut[virutkind].mypath[j].size_jmpvalue == 1)  //要么是1, 要么是4
+											{
+												nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue + FuckedVirut[virutkind].mypath[j].size_jmpvalue
+													+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue);
+												break;
+											}
+											nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue + FuckedVirut[virutkind].mypath[j].size_jmpvalue
+												+ *(int*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue);
+											break;
+										}
+									}
+								}
+								
+
+								break;  //确认完了就直接break; 不需要继续循环了, 因为num_e8call是唯一的.
+
+							}// end of xxx == nume8call
+						}
+
+						if (num_e8call == FuckedVirut[virutkind].lastnume8call && *(pLastCode + i) == 0xc3)
+						{
+							if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == FALSE) //此时e9/eb就是直接跟着的
+							{
+								if (*(pLastCode + i + 5) == 0xeb)
+								{
+									bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
+#if DEBUG
+									printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+									goto outofwhile;
+								}
+
+								if (*(pLastCode + i + 5) == 0xe9)
+								{
+									bodybase_RVA = prevRVA + i + 5 + 5 + *(int*)(pLastCode + i + 5 + 1);
+#if DEBUG
+									printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+									goto outofwhile;
+								}
+							}
+							else
+							{
+								findlast = TRUE;
+								i += 5;
+								continue;
+							}
+						}
+
+						if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == TRUE && findlast == TRUE && 
+							sig_cmp(pLastCode+i, FuckedVirut[virutkind].LastInstructionBeforeJmpBody))
+						{
+							//此时eb或e9肯定就跟着的.
+							if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xeb)
+							{
+								bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 2 
+									+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);  //算出跳转的目的地址
+#if DEBUG
+								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+								goto outofwhile;
+							}
+
+							if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xe9)
+							{
+								bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 5 
+									+ *(int*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);
+#if DEBUG
+								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+								goto outofwhile;
+							}
+						}
+
+						if (sig_cmp(pLastCode + i, "e8"))
+						{
+							++num_e8call;
+
+							for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+							{
+								if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)
+								{
+									//先检查是否产生backvalue1再检查是否跟进
+									if (FuckedVirut[virutkind].mypath[j].bGenBackValue1)
+									{
+										backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
+#if DEBUG
+										printf("用于计算回跳点的值1:%x\n", backvalue1);
+#endif
+									}
+
+									if (FuckedVirut[virutkind].mypath[j].bFollowIn)
+									{
+										nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
+										break;
+									}
+
+									break;
+								}
+								
+							}
+						}
+
+						if (sig_cmp(pLastCode + i, "e9") || sig_cmp(pLastCode + i, "eb"))
+						{
+
+							for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+							{
+								if (num_e8call >= FuckedVirut[virutkind].mypath[j].nume8call + 1)
+								{
+									//此时就需要验证相应的confirmed是否为1
+									BOOL bTemp = TRUE;
+									for (int m = 0; m < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++m)
+									{
+										if (lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[m]] == FALSE)
+										{
+											bTemp = FALSE;
+										}
+									}
+									if (bTemp == FALSE)
+									{
+										if (virutkind < MAXKIND)
+										{
+#if DEBUG
+											printf("非变种%d,换种方式\n", virutkind);
+#endif
+											++virutkind;
+											goto refuck;
+										}
+#if DEBUG
+										printf("可能不是virut样本,退出\n");
+#endif
+										goto end4;
+									}
+								}
+								else
+								{
+									break; //如果这里小于,那么后续的也就会小于,那么就没必要循环了.
+								}
+							}
+
+
+
+							if (sig_cmp(pLastCode + i, "e9"))
+							{
+								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
+								break;
+							}
+							if (sig_cmp(pLastCode + i, "eb"))
+							{
+								nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
+								break;
+							}
+
+						} // end of if e9/eb
 
 						if (num_e8call == 0)      
 						{
@@ -3500,21 +3677,16 @@ refuck:
 				// 这回不麻烦了, 就取body开始的5个字节 e9 10 01 00 00 暴力算
 				BYTE* db_base_0_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;
 
-				pBlock = pBlock + blockdescript_offset[virutkind] - 1;
+				pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset - 1;
 				
 				for (DWORD i = 1; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
 				{
 					BYTE db_before[5] = { 0 };
-					memcpy(db_before, db_before_sig[virutkind], 5);
+					memcpy(db_before, FuckedVirut[virutkind].db_before_sig, 5);
 					int temp = i;
-					for (int j = 0; j < 5; ++j)
-					{
-						db_before[j] += HIBYTE(temp);
-						temp *= dw_key_sig[virutkind];
-						db_before[j] ^= LOBYTE(temp);
-						
-						temp = HIBYTE(temp) | ((WORD)(LOBYTE(temp)) << 8);
-					}
+					
+					FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig,5);
+
 					if (!memcmp(db_base_0_after, db_before, 5))
 					{
 						//说明找到了
@@ -3525,20 +3697,24 @@ refuck:
 
 				//然后算出body+ block偏移 - 1时的keyfull
 
-				for (int i = 0; i < blockdescript_offset[virutkind] - 1 ; ++i)
+				FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_offset);
+
+				/*for (int i = 0; i < blockdescript_offset[virutkind] - 1 ; ++i)
 				{
 					keyfull *= dw_key_sig[virutkind];
 					keyfull = HIBYTE(keyfull) | ((WORD)(LOBYTE(keyfull)) << 8);
-				}
+				}*/
 
-				//开始解密
+				//从blockdescript-1开始解密
 
-				for (int i = 0; i < 0x600; ++i) // 后面的数据破坏就破坏了, 无所谓
-				{
-					WORD temp = keyfull * dw_key_sig[virutkind];
-					*(pBlock + i) = (*(pBlock + i) ^ LOBYTE(temp)) - HIBYTE(keyfull);
-					keyfull = HIBYTE(temp) | ((WORD)(LOBYTE(temp)) << 8);
-				}
+				FuckedVirut[virutkind].DecryptFunc(pBlock, keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_size + 1);
+
+				//for (int i = 0; i < 0x600; ++i) // 后面的数据破坏就破坏了, 无所谓
+				//{
+				//	WORD temp = keyfull * dw_key_sig[virutkind];
+				//	*(pBlock + i) = (*(pBlock + i) ^ LOBYTE(temp)) - HIBYTE(keyfull);
+				//	keyfull = HIBYTE(temp) | ((WORD)(LOBYTE(temp)) << 8);
+				//}
 
 				//printf("fuckdamnit");
 			}
