@@ -1136,7 +1136,7 @@ oepvir_decode:
 			DWORD prevRVA = CodeEntry2_RVA;
 			DWORD nextRVA = 0;
 			int num_e8call = 0;
-			int times = 0;
+            int times =  0;
 			BOOL findlast = FALSE;
 			int backvalue1 = 0, backvalue2 = 0;
 			int sig_confirmed1 = 0, sig_confirmed2 = 0;   //4个检查差不多够了.
@@ -1149,1474 +1149,205 @@ refuck:
 			prevRVA = CodeEntry2_RVA;
 			nextRVA = 0;
 			num_e8call = 0;
-			times = 0;
+            times = 0;
 			findlast = FALSE;
-			backvalue1 = 0, backvalue2 = 0;
-			sig_confirmed1 = 0, sig_confirmed2 = 0;  
-			sig_confirmed3 = 0, sig_confirmed4 = 0;
-			lastsec_sig_confirmed[10] = { 0 };
+			backvalue1 = 0, backvalue2 = 0;	
+            memset(lastsec_sig_confirmed, 0, 10 * 4);
 			jmptimes = 0;
 
 			while (1)
 			{   
-				if (virutkind == 1)  
-				{
-					for (int i = 0; i < 0x100; )    //每一块一般就3~5条指令, 加上一些垃圾代码, 根据概率, 基本会<0x100   //在新一代中, 每一块的指令数是0x21, 所以这个0x100的判断貌似有点不够 
-					{
-						if (*(pLastCode + i) == 0xE8)   //根据已经经过的e8 call数量, 来定位自身代码的相应位置,     需要注意call esi是ff d6.. 差点因为这个数错了..
-						{                               //经过1次e8后, 遇到的jz, 0f 84 xx xx xx xx就直接跳到目的位置
-														//经过4次e8后, 遇到的第一个jz不管, 第二个jz, 0f 84 xx xx xx xx也直接跳到目的地
-														//经过8次e8后, 遇到的第一个c3后直接跳过5个字节, 继续反汇编, 此时找到lea ecx,[ecx+0] 8d 49 00 + e9/eb xx序列, 后面的jmp目的地址就是body的基地址了!!
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-								//第一个call也要跳, 以后的call全部无视
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-								{
-									break;  //符合条件的时候才break; 不符合条件的就当没发生继续  这个判断没必要了..
-								}
-							}
-
-						}
-						if (num_e8call == 1)  //8B 6C 24 20  mov     ebp, [esp+0x20] ;
-						{
-							if (*(DWORD*)(pLastCode + i) == 0x20246c8b)
-							{
-								sig_confirmed1 = 1;
-							}
-
-							if (*(pLastCode + i) == 0x81 && *(pLastCode + i + 1) == 0x44
-								&& *(pLastCode + i + 2) == 0x24 && *(pLastCode + i + 3) == 0x20)
-							{
-								sig_confirmed2 = 1;
-								backvalue2 = *(int*)(pLastCode + i + 4);
-								calc_backupvaluemethod = 1;
-#if DEBUG
-								printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-							}
-
-							if (*(pLastCode + i) == 0x81 && *(pLastCode + i + 1) == 0x74
-								&& *(pLastCode + i + 2) == 0x24 && *(pLastCode + i + 3) == 0x20)
-							{
-								sig_confirmed2 = 1;
-								backvalue2 = *(int*)(pLastCode + i + 4);
-								calc_backupvaluemethod = 2;
-#if DEBUG
-								printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-							}
-
-							if (*(pLastCode + i) == 0x81 && *(pLastCode + i + 1) == 0x6c
-								&& *(pLastCode + i + 2) == 0x24 && *(pLastCode + i + 3) == 0x20)
-							{
-								sig_confirmed2 = 1;
-								backvalue2 = *(int*)(pLastCode + i + 4);
-								calc_backupvaluemethod = 3;
-#if DEBUG
-								printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-							}
-
-							if (*(pLastCode + i) == 0x0f && *(pLastCode + i + 1) == 0x84)  //jz pe_find 直接跳
-							{
-								nextRVA = prevRVA + i + 6 + *(int*)(pLastCode + i + 2);
-								break;
-							}
-
-						}
-
-						if (num_e8call == 4)
-						{
-							if (*(pLastCode + i) == 0x66 && *(pLastCode + i + 1) == 0x8c && *(pLastCode + i + 2) == 0xc8)   //mov ax, cs
-							{
-								sig_confirmed3 = 1;
-							}
-
-							if (*(DWORD*)(pLastCode + i) == 0x05e8c166)      //shr ax,5
-							{
-								sig_confirmed4 = 1;
-							}
-
-							if (*(pLastCode + i) == 0x0f && *(pLastCode + i + 1) == 0x84)
-							{
-								++times;
-								if (times == 2)  //第二个jz
-								{
-									nextRVA = prevRVA + i + 6 + *(int*)(pLastCode + i + 2);
-									break;
-								}
-							}
-						}
-
-						if (num_e8call == 8 && *(pLastCode + i) == 0xc3)
-						{
-							i += 5;
-							findlast = TRUE;
-							continue;
-						}
-						if (findlast && *(pLastCode + i) == 0x8d && *(pLastCode + i + 1) == 0x49 && *(pLastCode + i + 2) == 0x00) //lea ecx, [ecx+0]
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 3) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 2 + *(int8_t*)(pLastCode + i + 3 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 3) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 5 + *(int*)(pLastCode + i + 3 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-						}
-
-						//把E9放EB前面,这样更好一些.
-						if (*(pLastCode + i) == 0xE9)
-						{
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed1 == 1 && sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n",virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 5)
-							{
-								if (sig_confirmed3 == 1 && sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed1 == 1 && sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 5)
-							{
-								if (sig_confirmed3 == 1 && sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
-					}
-				}
-
-				if (virutkind == 2 || virutkind == 7)  //想了想, 为了干净一些还是另起炉灶吧, 不然全部混在一起, 以后看的时候会有点恶心.
-				{
-					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
-					{
-						
-						if (num_e8call == 0)       //? 为什么这块代码在调试的时候被跳过了??   这块代码居然消失了???
-						{
-							if (*(DWORD*)(pLastCode + i) == 0xfe243c83)  // cmp dword ptr[esp], -2
-							{
-								sig_confirmed1 = 1;            //我靠, 我居然把=写成了==, 然后编译器看我什么都没做,直接给我全优化了..
-							}
-						}
-
-						if (num_e8call == 1)
-						{
-							if (sig_cmp(pLastCode+i,"68 A1 A0 55 12"))   //2和7之间差距很小, 就只能用hash来区分了.
-							{
-								sig_confirmed2 = 1;
-								virutkind = 7;
-							}
-							if (sig_cmp(pLastCode + i, "68 4A 90 C5 01"))
-							{
-								sig_confirmed2 = 1;
-							}
-						}
-
-						if (num_e8call == 2)
-						{
-							if (*(DWORD*)(pLastCode + i) == 0x44247489)  // mov [esp+44h],esi
-							{
-								sig_confirmed3 = 1;
-							}
-						}
-
-						if (num_e8call == 5)
-						{
-							if (*(pLastCode + i) == 0x64 && *(WORD*)(pLastCode + i + 1) == 0x158b && *(DWORD*)(pLastCode + i + 3) == 0x30)  // mov edx, large fs:30h
-							{
-								sig_confirmed4 = 1;
-							}
-						}
-
-						if (num_e8call == 8 && *(pLastCode + i) == 0xc3)
-						{
-							findlast = TRUE;
-							i += 5;
-							continue;
-						}
-
-						if (findlast && *(WORD*)(pLastCode + i) == 0xff8b)  //mov edi, edi
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 2) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 2 + 2 + *(int8_t*)(pLastCode + i + 2 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 2) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 2 + 5 + *(int*)(pLastCode + i + 2 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-						}
-
-						if (*(pLastCode + i) == 0xe8)
-						{
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-							}
-							if (num_e8call == 4) //这个call要进去
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-
-						}
-						if (*(pLastCode + i) == 0xe9)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-							
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 6)
-							{
-								if (sig_confirmed4== 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							if (num_e8call >= 6)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
-					}
-
-				} 
 				
-				if (virutkind == 3)
+				for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
 				{
-					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
+
+					for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
 					{
-
-						for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+						if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)  //找到当前的e8call
 						{
-							if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)  //找到当前的e8call
+							for (int k = 0; k < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++k)
 							{
-								for (int k = 0; k < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++k)
+								if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].confirmed_sig[k]))
 								{
-									if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].confirmed_sig[k]))
-									{
-										lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[k]] = 1;
-									}
+									lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[k]] = 1;
 								}
+							}
 
-								if (FuckedVirut[virutkind].mypath[j].times) //用于确认有需要碰到指定次数就跳的指令.
+							if (FuckedVirut[virutkind].mypath[j].times) //用于确认有需要碰到指定次数就跳的指令.
+							{
+								for (int k = 0; k < 2; ++k)
 								{
-									if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].sig))
+									if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].mypath[j].sig[k]))
 									{
 										++times;
 										if (times == FuckedVirut[virutkind].mypath[j].times)
 										{
-											if (FuckedVirut[virutkind].mypath[j].size_jmpvalue == 1)  //要么是1, 要么是4
+                                            times = 0; // 重置
+											if (FuckedVirut[virutkind].mypath[j].size_jmpvalue[k] == 1)  //要么是1, 要么是4
 											{
-												nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue + FuckedVirut[virutkind].mypath[j].size_jmpvalue
-													+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue);
-												break;
+												nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue[k] + FuckedVirut[virutkind].mypath[j].size_jmpvalue[k]
+													+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue[k]);
+                                                goto nextpos;
 											}
-											nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue + FuckedVirut[virutkind].mypath[j].size_jmpvalue
-												+ *(int*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue);
-											break;
+											nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue[k] + FuckedVirut[virutkind].mypath[j].size_jmpvalue[k]
+												+ *(int*)(pLastCode + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue[k]);
+                                            goto nextpos;
 										}
 									}
 								}
-								
 
-								break;  //确认完了就直接break; 不需要继续循环了, 因为num_e8call是唯一的.
+							}
 
-							}// end of xxx == nume8call
+
+							break;  //确认完了就直接break; 不需要继续循环了, 因为num_e8call是唯一的.
+
+						}// end of xxx == nume8call
+					}
+
+					if (num_e8call == FuckedVirut[virutkind].lastnume8call && *(pLastCode + i) == 0xc3)
+					{
+						if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == FALSE) //此时e9/eb就是直接跟着的
+						{
+							if (*(pLastCode + i + 5) == 0xeb)
+							{
+								bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
+#if DEBUG
+								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+								goto outofwhile;
+							}
+
+							if (*(pLastCode + i + 5) == 0xe9)
+							{
+								bodybase_RVA = prevRVA + i + 5 + 5 + *(int*)(pLastCode + i + 5 + 1);
+#if DEBUG
+								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+								goto outofwhile;
+							}
+						}
+						else
+						{
+							findlast = TRUE;
+							i += 5;
+							continue;
+						}
+					}
+
+					if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == TRUE && findlast == TRUE &&
+						sig_cmp(pLastCode + i, FuckedVirut[virutkind].LastInstructionBeforeJmpBody))
+					{
+						//此时eb或e9肯定就跟着的.
+						if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xeb)
+						{
+							bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 2
+								+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);  //算出跳转的目的地址
+#if DEBUG
+							printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+#endif // DEBUG
+							goto outofwhile;
 						}
 
-						if (num_e8call == FuckedVirut[virutkind].lastnume8call && *(pLastCode + i) == 0xc3)
+						if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xe9)
 						{
-							if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == FALSE) //此时e9/eb就是直接跟着的
-							{
-								if (*(pLastCode + i + 5) == 0xeb)
-								{
-									bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
+							bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 5
+								+ *(int*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);
 #if DEBUG
-									printf("尾节最终block块RVA为%x\n", bodybase_RVA);
+							printf("尾节最终block块RVA为%x\n", bodybase_RVA);
 #endif // DEBUG
-									goto outofwhile;
+							goto outofwhile;
+						}
+					}
+
+					if (sig_cmp(pLastCode + i, "e8"))
+					{
+						++num_e8call;
+
+						for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+						{
+							if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)
+							{
+								//先检查是否产生backvalue1再检查是否跟进
+								if (FuckedVirut[virutkind].mypath[j].bGenBackValue1)
+								{
+									backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
+#if DEBUG
+									printf("用于计算回跳点的值1:%x\n", backvalue1);
+#endif
 								}
 
-								if (*(pLastCode + i + 5) == 0xe9)
+								if (FuckedVirut[virutkind].mypath[j].bFollowIn)
 								{
-									bodybase_RVA = prevRVA + i + 5 + 5 + *(int*)(pLastCode + i + 5 + 1);
+									nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
+                                    goto nextpos;
+								}
+
+								break;
+							}
+
+						}
+					} 
+
+					if (sig_cmp(pLastCode + i, "e9") || sig_cmp(pLastCode + i, "eb"))
+					{
+
+						for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
+						{
+							if (num_e8call >= FuckedVirut[virutkind].mypath[j].nume8call + 1)
+							{
+								//此时就需要验证相应的confirmed是否为1
+								BOOL bTemp = TRUE;
+								for (int m = 0; m < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++m)
+								{
+									if (lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[m]] == FALSE)
+									{
+										bTemp = FALSE;
+									}
+								}
+								if (bTemp == FALSE)
+								{
+									if (virutkind < MAXKIND)
+									{
 #if DEBUG
-									printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-									goto outofwhile;
+										printf("非变种%d,换种方式\n", virutkind);
+#endif
+										++virutkind;
+										goto refuck;
+									}
+#if DEBUG
+									printf("可能不是virut样本,退出\n");
+#endif
+									goto end4;
 								}
 							}
 							else
 							{
-								findlast = TRUE;
-								i += 5;
-								continue;
-							}
-						}
-
-						if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == TRUE && findlast == TRUE && 
-							sig_cmp(pLastCode+i, FuckedVirut[virutkind].LastInstructionBeforeJmpBody))
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 2 
-									+ *(int8_t*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + FuckedVirut[virutkind].LastInstructionSize + 5 
-									+ *(int*)(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-						}
-
-						if (sig_cmp(pLastCode + i, "e8"))
-						{
-							++num_e8call;
-
-							for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
-							{
-								if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)
-								{
-									//先检查是否产生backvalue1再检查是否跟进
-									if (FuckedVirut[virutkind].mypath[j].bGenBackValue1)
-									{
-										backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-										printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-									}
-
-									if (FuckedVirut[virutkind].mypath[j].bFollowIn)
-									{
-										nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-										break;
-									}
-
-									break;
-								}
-								
-							}
-						}
-
-						if (sig_cmp(pLastCode + i, "e9") || sig_cmp(pLastCode + i, "eb"))
-						{
-
-							for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
-							{
-								if (num_e8call >= FuckedVirut[virutkind].mypath[j].nume8call + 1)
-								{
-									//此时就需要验证相应的confirmed是否为1
-									BOOL bTemp = TRUE;
-									for (int m = 0; m < FuckedVirut[virutkind].mypath[j].num_confirmed_sig; ++m)
-									{
-										if (lastsec_sig_confirmed[FuckedVirut[virutkind].mypath[j].confirmed_sig_index[m]] == FALSE)
-										{
-											bTemp = FALSE;
-										}
-									}
-									if (bTemp == FALSE)
-									{
-										if (virutkind < MAXKIND)
-										{
-#if DEBUG
-											printf("非变种%d,换种方式\n", virutkind);
-#endif
-											++virutkind;
-											goto refuck;
-										}
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-								else
-								{
-									break; //如果这里小于,那么后续的也就会小于,那么就没必要循环了.
-								}
-							}
-
-
-
-							if (sig_cmp(pLastCode + i, "e9"))
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-							if (sig_cmp(pLastCode + i, "eb"))
-							{
-								nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-								break;
-							}
-
-						} // end of if e9/eb
-
-						if (num_e8call == 0)      
-						{
-							if (sig_cmp(pLastCode+i,"83 ec 2c"))  // sub esp,0x2c     83 ec 2c
-							{
-								sig_confirmed1 = 1;            
-							}
-						}
-
-						if (num_e8call == 1)
-						{
-							if (sig_cmp(pLastCode+i,"66 81 BB 80 1B 00 00 4D 5A"))   //cmp     word ptr [ebx+1B80h], 5A4Dh
-							{
-								sig_confirmed2 = 1;
-							}
-						}
-
-						if (num_e8call == 2)
-						{
-							if (sig_cmp(pLastCode+i,"8F 44 24 44"))  // pop     [esp+30h+arg_10]
-							{
-								sig_confirmed3 = 1;
-							}
-						}
-
-						if (num_e8call == 5)
-						{
-							if (sig_cmp(pLastCode+i,"68 19 02 8C A5"))  // push    0A58C0219h
-							{
-								sig_confirmed4 = 1;
-							}
-						}
-
-						if (num_e8call == 7 && *(pLastCode + i) == 0xc3)   // c3 xx xx xx xx e9/eb
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 5) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 5) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 5 + 5 + *(int*)(pLastCode + i + 5 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
+								break; //如果这里小于,那么后续的也就会小于,那么就没必要循环了.
 							}
 						}
 
 
-						if (*(pLastCode + i) == 0xe8)
+
+						if (sig_cmp(pLastCode + i, "e9"))
 						{
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-							}
-							if (num_e8call == 4) //这个call要进去
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-
-						}
-						if (*(pLastCode + i) == 0xe9)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 6)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
 							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
+							break;
 						}
-						if (*(pLastCode + i) == 0xeb)
+						if (sig_cmp(pLastCode + i, "eb"))
 						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							if (num_e8call >= 6)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
 							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
 							break;
 						}
 
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
-					}
-				}
+					} // end of if e9/eb
 
-				if (virutkind == 4)
-				{
-					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
+
+					int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
+					if (count == 1)
 					{
-
-						if (num_e8call == 0)
-						{
-							if (sig_cmp(pLastCode + i, "83 3c 24 ff"))  // cmp dword ptr [esp],-1
-							{
-								sig_confirmed1 = 1;
-							}
-						}
-
-						if (num_e8call == 1)
-						{
-							if (sig_cmp(pLastCode + i, "0f b7 cb"))   //movzx ecx,bx
-							{
-								sig_confirmed2 = 1;
-							}
-						}
-
-						if (num_e8call == 2)
-						{
-							if (sig_cmp(pLastCode + i, "89 74 24 44"))  //mov [esp+44h],esi
-							{
-								sig_confirmed3 = 1;
-							}
-						}
-
-						if (num_e8call == 6)
-						{
-							if (sig_cmp(pLastCode + i, "f7 5c 24 04"))  // neg dword ptr [esp + 4]
-							{
-								sig_confirmed4 = 1;
-							}
-							
-						}
-
-						if (num_e8call == 7 && *(pLastCode + i) == 0xc3)   // c3 xx xx xx xx e9/eb
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 5) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 5) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 5 + 5 + *(int*)(pLastCode + i + 5 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-						}
-
-
-						if (*(pLastCode + i) == 0xe8)
-						{
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-							}
-							if (num_e8call == 4) //这个call要进去
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-
-						}
-						if (*(pLastCode + i) == 0xe9)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 3)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
+						i += insn[0].size;
+						cs_free(insn, count);
+						if (i >= 0x100)
 						{
 							if (virutkind < MAXKIND)
 							{
@@ -2632,994 +1363,27 @@ refuck:
 							goto end4;
 						}
 					}
-				}
-
-				if (virutkind == 5)
-				{
-					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
+					else
 					{
-						if (num_e8call == 0)
+						if (virutkind < MAXKIND)
 						{
-							if (sig_cmp(pLastCode + i, "8d 64 24 d0"))  // lea esp, [esp-0x30]
-							{
-								sig_confirmed1 = 1;
-							}
+#if DEBUG
+							printf("非变种%d,换种方式\n", virutkind);
+#endif
+							++virutkind;
+							goto refuck;
 						}
-
-						if (num_e8call == 1)
-						{
-							if (sig_cmp(pLastCode+i,"0f 91 c0"))  //setno al
-							{
-								sig_confirmed2 = 1;
-							}
-						}
-
-						if (num_e8call == 3)
-						{
-							if (sig_cmp(pLastCode + i, "83 7c 24 34 04"))  // mov [esp+34h],4
-							{
-								sig_confirmed3 = 1;
-							}
-						}
-
-						if (num_e8call == 6)
-						{
-							if (sig_cmp(pLastCode + i, "f7 5c 24 04"))  // neg [esp+4]
-							{
-								sig_confirmed4 = 1;
-							}
-						}
-
-						if (num_e8call == 7 && *(pLastCode + i) == 0xc3)
-						{
-							findlast = TRUE;
-							i += 5;
-							continue;
-						}
-
-						if (findlast && sig_cmp(pLastCode + i, "8d 49 00"))  //lea ecx,[ecx+0]
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 3) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 2 + *(int8_t*)(pLastCode + i + 3 + 1);  //算出跳转的目的地址
 #if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 3) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 5 + *(int*)(pLastCode + i + 3 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-						}
-
-						if (*(pLastCode + i) == 0xe8)
-						{
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
+						printf("可能不是virut样本,退出\n");
 #endif
-							}
-							if (num_e8call == 4) //这个call要进去
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-
-						}
-						if (*(pLastCode + i) == 0xe9)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 4)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 4)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
+						goto end4;
 					}
 				}
-
-				if (virutkind == 6)
-				{
-					for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
-					{
-						if (num_e8call == 0)
-						{
-							if (sig_cmp(pLastCode + i, "83 ec 30"))  // sub esp,0x30
-							{
-								sig_confirmed1 = 1;
-							}
-						}
-
-						if (num_e8call == 1)
-						{
-							if (sig_cmp(pLastCode + i, "0f b7 93 bc 1c 00 00"))  //movzx edx,word ptr [ebx+1cbch]
-							{
-								sig_confirmed2 = 1;
-							}
-						}
-
-						if (num_e8call == 3)
-						{
-							if (sig_cmp(pLastCode + i, "87 44 24 34"))  // xchg eax,[esp+34h]
-							{
-								sig_confirmed3 = 1;
-							}
-						}
-
-						if (num_e8call == 6)
-						{
-							if (sig_cmp(pLastCode + i, "f7 54 24 04"))  // not [esp+4]
-							{
-								sig_confirmed4 = 1;
-							}
-						}
-
-						if (num_e8call == 7 && *(pLastCode + i) == 0xc3)
-						{
-							findlast = TRUE;
-							i += 5;
-							continue;
-						}
-
-						if (findlast && sig_cmp(pLastCode + i, "8d 49 00"))  //lea ecx,[ecx+0]
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 3) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 2 + *(int8_t*)(pLastCode + i + 3 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 3) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 5 + *(int*)(pLastCode + i + 3 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-						}
-
-						if (*(pLastCode + i) == 0xe8)
-						{
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-							}
-							if (num_e8call == 4) //这个call要进去
-							{
-								nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-								break;
-							}
-
-						}
-						if (*(pLastCode + i) == 0xe9)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 4)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 1)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 4)
-							{
-								if (sig_confirmed3 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							if (num_e8call >= 7)
-							{
-								if (sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-									else
-									{
-#if DEBUG
-										printf("可能不是virut样本,退出\n");
-#endif
-										goto end4;
-									}
-								}
-							}
-
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
-					}
-				}
-
-				if (virutkind == 8)
-				{
-					for (int i = 0; i < 0x100; )    //每一块一般就3~5条指令, 加上一些垃圾代码, 根据概率, 基本会<0x100   //在新一代中, 每一块的指令数是0x21, 所以这个0x100的判断貌似有点不够 
-					{
-						if (*(pLastCode + i) == 0xE8)   //根据已经经过的e8 call数量, 来定位自身代码的相应位置,     需要注意call esi是ff d6.. 差点因为这个数错了..
-						{                               //经过1次e8后, 遇到的jz, 0f 84 xx xx xx xx就直接跳到目的位置
-														//经过4次e8后, 遇到的第一个jz不管, 第二个jz, 0f 84 xx xx xx xx也直接跳到目的地
-														//经过8次e8后, 遇到的第一个c3后直接跳过5个字节, 继续反汇编, 此时找到lea ecx,[ecx+0] 8d 49 00 + e9/eb xx序列, 后面的jmp目的地址就是body的基地址了!!
-							++num_e8call;
-							if (num_e8call == 1)  //这里不一定是E8 00 00 00 00, 不过没什么影响.
-							{
-								backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
-#if DEBUG
-								printf("用于计算回跳点的值1:%x\n", backvalue1);
-#endif
-							}
-
-						}
-						if (num_e8call == 1)  
-						{
-							if (sig_cmp(pLastCode+i,"0f a2")) //cpuid
-							{
-								sig_confirmed1 = 1;
-							}
-
-
-							if (*(pLastCode + i) == 0x0f && *(pLastCode + i + 1) == 0x84)  //jz pe_find 直接跳
-							{
-								nextRVA = prevRVA + i + 6 + *(int*)(pLastCode + i + 2);
-								break;
-							}
-
-						}
-
-						if (num_e8call == 3)
-						{
-							if (*(pLastCode + i) == 0x0f && *(pLastCode + i + 1) == 0x84)
-							{
-								++times;
-								if (times == 1)  //第一个jz
-								{
-									nextRVA = prevRVA + i + 6 + *(int*)(pLastCode + i + 2);
-									break;
-								}
-							}
-
-							if (sig_cmp(pLastCode + i, "66 C1 E9 03"))  // shr cx,3
-							{
-								sig_confirmed2 = 1;
-							}
-
-
-						}
-
-						if (num_e8call == 4)
-						{
-							if (sig_cmp(pLastCode+i,"8b ce"))   //mov ecx,esi
-							{
-								sig_confirmed3 = 1;
-							}
-							if (sig_cmp(pLastCode + i, "68 4C 13 79 60"))   //push    6079134Ch
-							{
-								sig_confirmed4 = 1;
-							}
-						}
-
-						if (num_e8call == 7 && *(pLastCode + i) == 0xc3)
-						{
-							i += 5;
-							findlast = TRUE;
-							continue;
-						}
-						if (findlast && sig_cmp(pLastCode+i,"8d 49 00")) //lea ecx, [ecx+0]
-						{
-							//此时eb或e9肯定就跟着的.
-							if (*(pLastCode + i + 3) == 0xeb)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 2 + *(int8_t*)(pLastCode + i + 3 + 1);  //算出跳转的目的地址
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-							if (*(pLastCode + i + 3) == 0xe9)
-							{
-								bodybase_RVA = prevRVA + i + 3 + 5 + *(int*)(pLastCode + i + 3 + 1);
-#if DEBUG
-								printf("尾节最终block块RVA为%x\n", bodybase_RVA);
-#endif // DEBUG
-								goto outofwhile;
-							}
-
-						}
-
-						//把E9放EB前面,这样更好一些.
-						if (*(pLastCode + i) == 0xE9)
-						{
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 5)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 5)
-							{
-								if (sig_confirmed3 == 1&& sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-							nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
-							if ((nextRVA > pLastSec->VirtualAddress) && (nextRVA < pLastSec->VirtualAddress + pLastSec->SizeOfRawData))
-							{
-
-								break;  //符合条件的时候才break; 不符合条件的就当没发生继续
-							}
-						}
-						if (*(pLastCode + i) == 0xeb)
-						{
-							if (num_e8call >= 2)
-							{
-								if (sig_confirmed1 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 4)
-							{
-								if (sig_confirmed2 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-
-							if (num_e8call >= 5)
-							{
-								if (sig_confirmed3 == 1 && sig_confirmed4 == 1)
-								{
-#if DEBUG
-									;   //是的话什么都不做, 不是的话就得退出了.
-#endif
-								}
-								else
-								{
-									if (virutkind < MAXKIND)
-									{
-#if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
-#endif
-										++virutkind;
-										goto refuck;
-									}
-#if DEBUG
-									printf("可能不是virut样本,退出\n");
-#endif
-									goto end4;
-								}
-							}
-							nextRVA = prevRVA + i + 2 + *(int8_t*)(pLastCode + i + 1);
-							break;
-						}
-
-						int count = cs_disasm(handle, pLastCode + i, 0xf, 0, 1, &insn);
-						if (count == 1)
-						{
-							i += insn[0].size;
-							cs_free(insn, count);
-							if (i >= 0x100)
-							{
-								if (virutkind < MAXKIND)
-								{
-#if DEBUG
-									printf("非变种%d,换种方式\n", virutkind);
-#endif
-									++virutkind;
-									goto refuck;
-								}
-#if DEBUG
-								printf("可能不是virut样本,退出\n");
-#endif
-								goto end4;
-							}
-						}
-						else
-						{
-							if (virutkind < MAXKIND)
-							{
-#if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
-#endif
-								++virutkind;
-								goto refuck;
-							}
-#if DEBUG
-							printf("可能不是virut样本,退出\n");
-#endif
-							goto end4;
-						}
-					}
-				}
-
+nextpos:			
 				pLastCode = data + RVA2FO(pish, numOfSections, nextRVA);
 				prevRVA = nextRVA;
 				++jmptimes;
-				if (jmptimes >= 0x100)        //块数方面, 旧一代的块数大概在0x64, 新一代的块数在0x79, 所以这个判断应该还可以兼容.
+				if (jmptimes >= 0x100)        //0x100块够用了..
 				{
 					if (virutkind < MAXKIND)
 					{
@@ -3638,176 +1402,48 @@ refuck:
 
 		outofwhile:
 
-
-
 			// 现在bodybase_RVA有了, 准备去解密bodybase_RVA+0x53c处的数据
 			//+539 00 c3  利用这两个数据, 利用加密算法的漏洞算出key, 
 			WORD keyfull;
 			BYTE* pBlock = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;  
 
-			if (virutkind == 1)
-			{
-				pBlock = pBlock + 0x53c - 1;
-				BYTE db_base_minus3_before = 0x00, db_base_minus3_after;
-				BYTE db_base_minus2_before = 0xc3, db_base_minus2_after;
-				BYTE key1, key2;
+            BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + FuckedVirut[virutkind].db_before_sig_offset_from_body;
 
+            pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset - 1;
+            BOOL found = FALSE;
 
-				db_base_minus3_after = *(data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0x53c - 3);
-				db_base_minus2_after = *(data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0x53c - 2);
+            for (DWORD i = 0; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
+            {
+                BYTE db_before[0x10] = { 0 };
+                memcpy(db_before, FuckedVirut[virutkind].db_before_sig, FuckedVirut[virutkind].db_before_sig_len);
+                int temp = i;
 
-				key1 = db_base_minus3_after ^ db_base_minus3_before;
-				key2 = db_base_minus2_after ^ db_base_minus2_before;
+                FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].db_before_sig_len);
 
+                if (!memcmp(db_base_x_after, db_before, FuckedVirut[virutkind].db_before_sig_len))
+                {
+                    found = TRUE;
+                    //说明找到了
+                    keyfull = i;
+                    break;
+                }
+            }
 
-				key1 *= 0xd;
-				keyfull = ((WORD)key1 << 8) | key2;
+            if (found == FALSE)
+            {
+#if DEBUG
+                printf("爆破密钥出错,退出\n");
+#endif
+                goto end4;
+            }
 
-				//然后解密个0x70 * 8字节数 , 因为块最多0x64个左右..
-				for (int i = 0; i < 0x70 * 8; ++i)
-				{
-					keyfull *= 0xd;
-					keyfull = HIBYTE(keyfull) | ((WORD)(LOBYTE(keyfull)) << 8); //xchg dh,dl
-					*(pBlock + i) ^= LOBYTE(keyfull);         //注意,调试的时候,每次都会改变文件的内容,所以要每次备份原版文件, 或者再改变一次, 就变成了原样了.
-				}
-			}
+            //然后算出body+ block偏移 - 1时的keyfull
 
-			if (virutkind == 2 || virutkind == 4 || virutkind == 5 || virutkind == 6 || virutkind == 7)
-			{
-				// 这回不麻烦了, 就取body开始的5个字节 e9 10 01 00 00 暴力算
-				BYTE* db_base_0_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;
+            FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_offset - 1 - FuckedVirut[virutkind].db_before_sig_offset_from_body);
 
-				pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset - 1;
-				
-				for (DWORD i = 1; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
-				{
-					BYTE db_before[5] = { 0 };
-					memcpy(db_before, FuckedVirut[virutkind].db_before_sig, 5);
-					int temp = i;
-					
-					FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig,5);
+            //从blockdescript-1开始解密
 
-					if (!memcmp(db_base_0_after, db_before, 5))
-					{
-						//说明找到了
-						keyfull = i;
-						break;
-					}
-				}
-
-				//然后算出body+ block偏移 - 1时的keyfull
-
-				FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_offset);
-
-				/*for (int i = 0; i < blockdescript_offset[virutkind] - 1 ; ++i)
-				{
-					keyfull *= dw_key_sig[virutkind];
-					keyfull = HIBYTE(keyfull) | ((WORD)(LOBYTE(keyfull)) << 8);
-				}*/
-
-				//从blockdescript-1开始解密
-
-				FuckedVirut[virutkind].DecryptFunc(pBlock, keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_size + 1);
-
-				//for (int i = 0; i < 0x600; ++i) // 后面的数据破坏就破坏了, 无所谓
-				//{
-				//	WORD temp = keyfull * dw_key_sig[virutkind];
-				//	*(pBlock + i) = (*(pBlock + i) ^ LOBYTE(temp)) - HIBYTE(keyfull);
-				//	keyfull = HIBYTE(temp) | ((WORD)(LOBYTE(temp)) << 8);
-				//}
-
-				//printf("fuckdamnit");
-			}
-
-			if (virutkind == 3)
-			{
-				//e9 2d 01 00 00  body+0处5个字节
-				BYTE* db_base_0_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;
-				pBlock = pBlock + blockdescript_offset[virutkind] - 1;
-
-				for (DWORD i = 1; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
-				{
-					BYTE db_before[5] = { 0,0,0,0,0 };
-					memcpy(db_before, db_before_sig[virutkind], 5);
-					int temp = i;
-					for (int j = 0; j < 5; ++j)
-					{
-						db_before[j] -= HIBYTE(temp);					
-						db_before[j] ^= LOBYTE(temp);
-						temp *= dw_key_sig[virutkind];
-						temp = HIBYTE(temp) | ((WORD)(LOBYTE(temp)) << 8);
-					}
-					if (!memcmp(db_base_0_after, db_before, 5))
-					{
-						//说明找到了
-						keyfull = i;
-						break;
-					}
-				}
-				//然后算出body+ 0x5a1 - 1时的keyfull
-
-				for (int i = 0; i < blockdescript_offset[virutkind] - 1; ++i)
-				{
-					keyfull *= dw_key_sig[virutkind];
-					keyfull = HIBYTE(keyfull) | ((WORD)(LOBYTE(keyfull)) << 8);
-				}
-
-				//开始解密
-
-				for (int i = 0; i < 0x600; ++i) // 后面的数据破坏就破坏了, 无所谓
-				{
-					*(pBlock + i) = (*(pBlock + i) ^ LOBYTE(keyfull)) + HIBYTE(keyfull);
-					keyfull *= dw_key_sig[virutkind];
-					keyfull = HIBYTE(keyfull) | ((WORD)(LOBYTE(keyfull)) << 8);
-				}
-
-				//printf("gufsdfjsdoif\n");
-
-			}
-
-			if (virutkind == 8)
-			{
-				
-				BYTE* db_base_0_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;
-				pBlock = pBlock + blockdescript_offset[virutkind] - 1;
-
-				for (DWORD i = 1; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
-				{
-					BYTE db_before[5] = { 0,0,0,0,0 };
-					memcpy(db_before, db_before_sig[virutkind], 5);
-					WORD temp = i;
-					for (int j = 0; j < 5; ++j)
-					{
-						db_before[j] ^= LOBYTE(temp);
-						__asm rol temp,4
-						temp *= dw_key_sig[virutkind];
-					}
-					if (!memcmp(db_base_0_after, db_before, 5))
-					{
-						//说明找到了
-						keyfull = i;
-						break;
-					}
-				}
-				
-
-				for (int i = 0; i < blockdescript_offset[virutkind] - 1; ++i)
-				{
-					__asm rol keyfull, 4
-					keyfull *= dw_key_sig[virutkind];
-				}
-
-				//开始解密
-
-				for (int i = 0; i < 0x600; ++i) // 后面的数据破坏就破坏了, 无所谓
-				{
-					*(pBlock + i) ^= LOBYTE(keyfull);
-					__asm rol keyfull, 4
-					keyfull *= dw_key_sig[virutkind];
-				}
-
-				//printf("gufsdfjsdoif\n");
-			}
+            FuckedVirut[virutkind].DecryptFunc(pBlock, keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_size + 1);
 
 			//解密完毕, 找到CodeEntry2_Base_RVA
 
@@ -3847,7 +1483,7 @@ refuck:
 				{
 					PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
 				
-					if ((recover_off[virutkind] >= *(pTemp + 1)) && (recover_off[virutkind] < (*(pTemp + 1) + *pTemp)))
+					if ((FuckedVirut[virutkind].recover_off >= *(pTemp + 1)) && (FuckedVirut[virutkind].recover_off < (*(pTemp + 1) + *pTemp)))
 					{
 						CodeToSearch_RVA = CodeEntry2_base_RVA + *(pTemp + 2);
 
@@ -3936,25 +1572,21 @@ refuck:
 			if (hasHook1 == FALSE)
 			{
 				DWORD CodeToSearch_RVA = 0;
-				
-				
-				if (virutkind != 1)  //因为我第一代的处理, 是直接在遍历代码时直接拿了.
-				{
-					//接下来寻找包含backvalue2指令的block 
-					for (int i = 0; i < 0x100; ++i)
-					{
-						PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
+					
+                //接下来寻找包含backvalue2指令的block 
+                for (int i = 0; i < 0x100; ++i)
+                {
+                    PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
 
-						if ((backvalue_off[virutkind] >= *(pTemp + 1)) && (backvalue_off[virutkind] < (*(pTemp + 1) + *pTemp)))
-						{
-							CodeToSearch_RVA = CodeEntry2_base_RVA + *(pTemp + 2);
+                    if ((FuckedVirut[virutkind].backvalue_off >= *(pTemp + 1)) && (FuckedVirut[virutkind].backvalue_off < (*(pTemp + 1) + *pTemp)))
+                    {
+                        CodeToSearch_RVA = CodeEntry2_base_RVA + *(pTemp + 2);
 #if DEBUG
-							printf("包含backvalue2指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
+                        printf("包含backvalue2指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
 #endif // DEBUG
-							break;
-						}
-					}
-				}
+                        break;
+                    }
+                }
 				
 				if (CodeToSearch_RVA)
 				{
@@ -4014,10 +1646,36 @@ refuck:
 								calc_backupvaluemethod = 1;
 								break;
 							}
-						}
+						}else if (virutkind == 9)
+						{
+                            if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
+                            {
+                                backvalue2 = *(int*)(pSearch + i + 2);
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                            }
+                            if (sig_cmp(pSearch + i, "01 2b")) //add [ebx], ebp
+                            {
+                                calc_backupvaluemethod = 1;
+                                break;
+                            }
+                        }
+                        else if (virutkind == 0xa)
+                        {
+                            if (sig_cmp(pSearch + i, "bd"))   //mov ebp, dd_backvalue2
+                            {
+                                calc_backupvaluemethod = 1;       //这变种居然把那个放外面去了..
+                                backvalue2 = *(int*)(pSearch + i + 2);
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }
 						else
 						{
-							if (sig_cmp(pSearch + i, "81 44 24 24"))   //add dword ptr [esp+0x24], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..
+							if (sig_cmp(pSearch + i, "81 44 24"))   //add dword ptr [esp+0x24], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..  //还有 esp+0x20的. 于是我直接去了+xx的偏移
 							{
 								calc_backupvaluemethod = 1;
 								backvalue2 = *(int*)(pSearch + i + 4);
@@ -4027,7 +1685,7 @@ refuck:
 								break;
 							}
 
-							if (sig_cmp(pSearch + i, "81 74 24 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
+							if (sig_cmp(pSearch + i, "81 74 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
 							{
 								calc_backupvaluemethod = 2;
 								backvalue2 = *(int*)(pSearch + i + 4);
@@ -4037,7 +1695,7 @@ refuck:
 								break;
 							}
 
-							if (sig_cmp(pSearch + i, "81 6c 24 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
+							if (sig_cmp(pSearch + i, "81 6c 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
 							{
 								calc_backupvaluemethod = 3;
 								backvalue2 = *(int*)(pSearch + i + 4);
@@ -4046,7 +1704,6 @@ refuck:
 #endif
 								break;
 							}
-
 
 							if (sig_cmp(pSearch + i, "81 c5"))  //add ebp, dd_backvalue2    目前变种4基准就看到这个, 我顺便把下面两种方式给写了.
 							{
@@ -4180,12 +1837,15 @@ refuck:
 			if (virutkind == 1)
 			{
 				*(DWORD*)(data + 0x20) = 0;
-			}
-			if (virutkind == 2)
+			}else if (virutkind == 8)
 			{
-				pinh->FileHeader.TimeDateStamp = 0;
-			}
-
+                *(DWORD*)(data + 0x24) = 0;
+            }
+            else
+            {
+                pinh->FileHeader.TimeDateStamp = 0;
+            }
+			
 		} // end of if codeentry2
 
 	}
