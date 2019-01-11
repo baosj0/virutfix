@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-#define MAXKIND 10         //当前处理的变种数量
+#define MAXKIND 14        //当前处理的变种数量
 
 typedef void (*pEncryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 typedef void (*pDecryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
@@ -48,6 +48,8 @@ typedef struct sig_struct
 
 extern sig_struct FuckedVirut[MAXKIND + 1];
 
+//有些加解密其实是一样的函数, 但我还是写了两份
+
 //virutkind 1 2 3 4 5 6 7 的迭代key方式
 extern void updatekey_1(WORD* key, WORD dw_key_sig, WORD times);
 
@@ -56,6 +58,12 @@ extern void updatekey_2(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind a
 extern void updatekey_3(WORD* key, WORD dw_key_sig, WORD times);
+
+//virutkind b c
+extern void updatekey_4(WORD* key, WORD dw_key_sig, WORD times);
+
+//virutkind d
+extern void updatekey_5(WORD* key, WORD dw_key_sig, WORD times);
 
 
 //virutkind 1 的加解密相关函数
@@ -82,3 +90,11 @@ extern void decrypt_5(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 //virutkind a
 extern void encrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind b  c
+extern void encrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind d
+extern void encrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);

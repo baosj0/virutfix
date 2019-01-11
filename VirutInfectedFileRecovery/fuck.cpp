@@ -8,8 +8,8 @@
 
 #pragma comment(lib,"capstone_dll.lib")
 
-#define DEBUG 1
-
+#define DEBUG 1      //输出调试信息
+#define MYTEST 1     //试验中碰到多层加密的, 那就把这个设为0, 一层一层去剥开, 看有没有没见过的变种
 
 
 
@@ -359,6 +359,7 @@ new1:
 		}
 		if (virutkind == -1)
 		{
+#if MYTEST
 			PIMAGE_SECTION_HEADER pjunk = &pish[pinh->FileHeader.NumberOfSections - 1];
 			char tempname[8] = { 0 };
 			memcpy(tempname, pjunk->Name, 8);
@@ -391,6 +392,7 @@ new1:
 				}
 			}
 			else
+#endif
 			{
 				printf("未知样本, 尝试处理\n");
 			}
@@ -625,7 +627,7 @@ new1:
 							if (CodeEntry2_base_size <= 0x8000 && CodeEntry2_base_size >= 0x3000)
 							{
 								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
-								virutkind = 2;
+								
 								block1_confirmed = 1;
 								indexAll[numofblock1_trueins] = *(pcode + i + 6) - 0x58;
 								++numofblock1_trueins;
@@ -646,7 +648,7 @@ new1:
 							if (CodeEntry2_base_size <= 0x8000 && CodeEntry2_base_size >= 0x3000)
 							{
 								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
-								virutkind = 3;
+								
 								block1_confirmed = 1;
 								indexAll[numofblock1_trueins] = *(pcode + i + 5) - 0x58;
 								++numofblock1_trueins;
@@ -671,7 +673,7 @@ new1:
 							{
 								decryptsize = 4;
 								block2_confirmed = 1;
-								virutkind = 1;           //可以确认是旧一代
+								           
 								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
 								key1All[numofblock2_trueins] = *(int*)(pcode + i + 6);
 								const char *damn = "不知道";
@@ -704,9 +706,9 @@ new1:
 							{
 								decryptsize = 1;
 								block2_confirmed = 1;
-								virutkind = 8;           //可以确认是旧一代
+								
 								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
-								key1All[numofblock2_trueins] = *(int*)(pcode + i + 6);
+								key1All[numofblock2_trueins] = *(BYTE*)(pcode + i + 6);
 								const char *damn = "不知道";
 
 								if ((*(pcode + i + 1) - 0x80 >= 0) && (*(pcode + i + 1) - 0x80) <= 2)
@@ -736,7 +738,7 @@ damn = "加法add";
 							{
 								decryptsize = 2;
 								block2_confirmed = 1;
-								virutkind = 2;  //可以确认是新一代
+								
 								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase;
 								key1All[numofblock2_trueins] = *(WORD*)(pcode + i + 7);
 								const char *damn = "不知道";
@@ -769,7 +771,7 @@ damn = "加法add";
 							{
 								decryptsize = 2;
 								block2_confirmed = 1;
-								virutkind = 3;  //可以确认是半新一代
+								
 								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase;
 								key1All[numofblock2_trueins] = *(WORD*)(pcode + i + 7);
 								const char *damn = "不知道";
@@ -1182,7 +1184,7 @@ refuck:
 										++times;
 										if (times == FuckedVirut[virutkind].mypath[j].times)
 										{
-                                            times = 0; // 重置
+                                         
 											if (FuckedVirut[virutkind].mypath[j].size_jmpvalue[k] == 1)  //要么是1, 要么是4
 											{
 												nextRVA = prevRVA + i + FuckedVirut[virutkind].mypath[j].off_jmpvalue[k] + FuckedVirut[virutkind].mypath[j].size_jmpvalue[k]
@@ -1262,7 +1264,7 @@ refuck:
 					if (sig_cmp(pLastCode + i, "e8"))
 					{
 						++num_e8call;
-
+                        times = 0; // 经过call就把这个计数给重置了..
 						for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
 						{
 							if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)
@@ -1279,6 +1281,7 @@ refuck:
 								if (FuckedVirut[virutkind].mypath[j].bFollowIn)
 								{
 									nextRVA = prevRVA + i + 5 + *(int*)(pLastCode + i + 1);
+                                    
                                     goto nextpos;
 								}
 
@@ -1666,8 +1669,22 @@ nextpos:
                             if (sig_cmp(pSearch + i, "bd"))   //mov ebp, dd_backvalue2
                             {
                                 calc_backupvaluemethod = 1;       //这变种居然把那个放外面去了..
-                                backvalue2 = *(int*)(pSearch + i + 2);
+                                backvalue2 = *(int*)(pSearch + i + 1);
 #if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }
+                        else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe)
+                        {
+                            if (sig_cmp(pSearch + i, "81 ed"))
+                            {
+                                calc_backupvaluemethod = 1;       
+                                backvalue2 = 0 - *(int*)(pSearch + i + 2);
+                                backvalue1 = 0;        //这个变种很心机啊, 居然把backvalue1清零了..
+#if DEBUG                       
+                                printf("特别的变种,用于计算回跳点的值1:%x\n", backvalue1); //注意,这一行别写在#if DEBUG这行上了.
                                 printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
                                 break;
@@ -1895,29 +1912,29 @@ end1:
 
 int main()
 {
-	char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
-	ScanFile(szFile, FALSE);
+    /*char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
+    ScanFile(szFile, FALSE);*/
 
 
-	/*char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
-	WIN32_FIND_DATA data;
-	HANDLE hFind;
-	char cFullPath[260];
-	char cNewPath[260];
-	sprintf_s(cFullPath, "%s\\*.*", szFilePath);
-	hFind = FindFirstFile(cFullPath, &data);
-	do
-	{
-		if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
-		{
-			continue;
-		}
+    char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
+    WIN32_FIND_DATA data;
+    HANDLE hFind;
+    char cFullPath[260];
+    char cNewPath[260];
+    sprintf_s(cFullPath, "%s\\*.*", szFilePath);
+    hFind = FindFirstFile(cFullPath, &data);
+    do
+    {
+        if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
+        {
+            continue;
+        }
 
-		sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
-		printf("修复文件%s\n", data.cFileName);
-		ScanFile(cFullPath, FALSE);
-		printf("\n\n");
-	} while (FindNextFile(hFind, &data));*/
+        sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
+        printf("修复文件%s\n", data.cFileName);
+        ScanFile(cFullPath, FALSE);
+        printf("\n\n");
+    } while (FindNextFile(hFind, &data));
 
 
 	return 0;

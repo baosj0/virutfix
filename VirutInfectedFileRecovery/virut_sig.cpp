@@ -43,9 +43,9 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         5,
         4 + 1,
         {
-			{0, FALSE, FALSE, 0, { 0 }, { 0 }, { 0 }, 1, {"83 3c 24 fe"}, {0}},         //cmp dword ptr[esp], -2
-			{1, TRUE,  FALSE, 0, { 0 }, { 0 }, { 0 }, 1, {"68 4a 90 c5 01"}, {1}},      // push xx
-			{2, FALSE, FALSE, 0, { 0 },{ 0 },{ 0 }, 1, {"89 74 24 44"}, {2}},         //mov [esp+44h],esi
+			{0, FALSE, FALSE, 0, { 0 }, { 0 }, { 0 }, 1, {"83 3c 24 fe"}, {0}},         //cmp dword ptr [esp], -2
+			{1, TRUE,  FALSE, 0, { 0 }, { 0 }, { 0 }, 2, {"68 4A 90 C5 01","68 C9 BC 94 90"}, {1,1}},      // dec ebx  dec bx
+			{2, FALSE, FALSE, 0, { 0 },{ 0 },{ 0 }, 1, {"89 74 24 44"}, {3}},         //mov [esp+44h],esi
             {4, FALSE, TRUE },
 			{5, FALSE, FALSE, 0, { 0 },{ 0 },{ 0 }, 1, {"64 8b 15 30 00 00 00"}, {3}} //mov edx, large fs:30h
         },
@@ -179,40 +179,40 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 			{ 2, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "89 74 24 44" }, {2} },         //mov [esp+44h],esi
 		    { 4, FALSE, TRUE },
 			{ 5, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "64 8b 15 30 00 00 00" }, {3} } //mov edx, large fs:30h
-		},
-		8,
-		TRUE,
-		"8b ff",    //mov edi,edi
-		2,
-		(pEncryptFuncAddr)encrypt_2,
+        },
+        8,
+        TRUE,
+        "8b ff",    //mov edi,edi
+        2,
+        (pEncryptFuncAddr)encrypt_2,
         (pDecryptFuncAddr)decrypt_2,
         (pUpdateKeyFuncAddr)updatekey_1
-	},
-	//第八种变种标记赋值
-	{
-		0x9f,
-		0x8,
-		0x548,
-		0x600,
-		0x11,
-		{ 0xe9,0xdd,0x00,0x00,0x00 },
+    },
+    //第八种变种标记赋值
+    {
+        0x9f,
+        0x8,
+        0x548,
+        0x600,
+        0x11,
+        { 0xe9,0xdd,0x00,0x00,0x00 },
         0,
         5,
-		3,
-		{
-			{ 1, TRUE,  FALSE, 1, {"0f 84","74"}, {2,1}, {4,1}, 1,{ "0f a2" }, {0} },         // jz  cpuid
-			{ 3, FALSE, FALSE, 1, {"0f 84","74"}, {2,1}, {4,1}, 1,{ "66 C1 E9 03" }, {1} },   //jz   shr cx,3
-			{ 4, FALSE, FALSE, 0, { 0 },{ 0 },{ 0 }, 2,{"8b ce","68 4c 13 79 60"},{2,3}}, //mov ecx,esi  push 6079134Ch
-		},
-		7,
-		TRUE,
-		"8d 49 00",    //lea ecx, [ecx+0]
-		3,
+        3,
+        {
+            { 1, TRUE,  FALSE, 1, {"0f 84","74"}, {2,1}, {4,1}, 1,{ "0f a2" }, {0} },         // jz  cpuid
+            { 3, FALSE, FALSE, 1, {"0f 84","74"}, {2,1}, {4,1}, 1,{ "66 C1 E9 03" }, {1} },   //jz   shr cx,3
+            { 4, FALSE, FALSE, 0, { 0 },{ 0 },{ 0 }, 2,{"8b ce","68 4c 13 79 60"},{2,3}}, //mov ecx,esi  push 6079134Ch
+        },
+        7,
+        TRUE,
+        "8d 49 00",    //lea ecx, [ecx+0]
+        3,
         (pEncryptFuncAddr)encrypt_4,
         (pDecryptFuncAddr)decrypt_4,
         (pUpdateKeyFuncAddr)updatekey_2
-	},
-    //第九种
+    },
+            //第九种
     {
         0xc7,
         0x10a,
@@ -222,7 +222,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         {0xe9, 0x2d, 0x01, 0x00, 0x00},
         0,
         5,
-        4+1, 
+        4 + 1,
         {
             { 0, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "83 ec 2c" }, {0} },  //sub esp, 2ch
             { 1, TRUE,  FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "03 8B 80 1C 00 00" }, {1} },  //add     ecx, [ebx+1C80h]
@@ -238,7 +238,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_5,
         (pUpdateKeyFuncAddr)updatekey_1
     },
-    //第a种
+            //第a种
     {
         0xa8,
         0xb6,
@@ -249,12 +249,12 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         0,
         5,
 
-        3+1,
+        3 + 1,
         {
             {0,FALSE,FALSE, 0, {0}, {0}, {0}, 1, {"83 c4 e0"}, {0}},
-            {1,TRUE,FALSE, 1, {"0f 84","74"},{2,1},{4,1}, 2, {"0F C1 6C 24 28","68 79 7F 7A F2"}, {1,2}},
+            {1,TRUE,FALSE, 1, {"0f 84","74"},{2,1},{4,1}, 2, {"0F C1 6C 24 28","66 81 E3 00 88"}, {1,2}},
             {4, FALSE, TRUE},
-            {5, FALSE,FALSE,0,{ 0 },{ 0 },{ 0 }, 1, {"68 75 09 DA 1C"},{3}}
+            {6, FALSE,FALSE,0,{ 0 },{ 0 },{ 0 }, 2, {"6a 01","6a ff"},{3,4}}
         },
         7,
         FALSE,
@@ -263,7 +263,110 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pEncryptFuncAddr)encrypt_6,
         (pDecryptFuncAddr)decrypt_6,
         (pUpdateKeyFuncAddr)updatekey_3
+    },
+            //第b种
+    {
+        0xa3,
+        0x1f,
+        0x549,
+        0x800,
+        0x11,
+        {0x68,0x00,0x10,0x00,0x08},
+        0xf2,
+        0x5,
+
+        4,  //num waypoint
+        {
+            {0,FALSE,FALSE,0,{0},{0},{0},1,{"83 3c 24 ff"},{0}},
+            {1, TRUE, TRUE, 1, {"0F 84", "74"}, {2,1},{4,1}, 1, {"2C 4A"}, {1}},
+            {3, FALSE,FALSE,1,{"0f 84","74"},{2,1},{4,1},2,{"66 c1 e9 03","66 c1 e9 04"},{2,3}},
+            {4, FALSE,FALSE,0,{0},{0},{0},1,{"87 f1"},{4}}
+        },
+        7,
+        TRUE,
+        "8d 49 00",
+        3,
+        (pEncryptFuncAddr)encrypt_7,
+        (pDecryptFuncAddr)decrypt_7,
+        (pUpdateKeyFuncAddr)updatekey_4
+    },
+        //第c种
+    {
+        0xa6,
+        0x20,
+        0x549,
+        0x800,
+        0x11,
+        {0x68,0x00,0x10,0x00,0x08},
+        0xf2,
+        0x5,
+
+        3,  //num waypoint
+        {
+            {1, TRUE, TRUE, 1, {"0F 84", "74"}, {2,1},{4,1}, 2, {"83 4B 14 FF","21 6B 14"}, {0,1}},
+            {3, FALSE,FALSE,1,{"0f 84","74"},{2,1},{4,1},2,{"66 c1 e9 03","66 c1 e9 04"},{2,3}},
+            {4, FALSE,FALSE,0,{0},{0},{0},1,{"87 f1"},{4}}
+        },
+        7,
+        FALSE,       
+        NULL,
+        0,
+        (pEncryptFuncAddr)encrypt_7,
+        (pDecryptFuncAddr)decrypt_7,
+        (pUpdateKeyFuncAddr)updatekey_4
+    },
+            //第d种
+    {
+        0x95,
+        0xf,
+        0x543,
+        0x800,
+        0x0,  //不需要, 这个变种Key不会迭代
+        { 0xE8,0x4F ,0x03 ,0x00 ,0x00 ,0x83,0xEC ,0x20 ,0x8B ,0xFC ,0x6A ,0x08 ,0x33 ,0xC0},
+        0x10e,
+        0xe,
+
+        3,  //num waypoint
+        {
+            {1, TRUE, TRUE, 1, {"0F 84", "74"}, {2,1},{4,1}, 2, {"31 6b 13","83 E5 00"}, {0,1}},
+            {3, FALSE,FALSE,2,{"0f 84","74"},{2,1},{4,1},2,{"66 c1 e9 02","66 c1 e9 04"},{2,3}},  //这里得第二次才跳
+            {4, FALSE,FALSE,0,{0},{0},{0},1,{"87 f1"},{4}}
+        },
+        7,
+        FALSE,       
+        NULL,
+        0,
+        (pEncryptFuncAddr)encrypt_8,
+        (pDecryptFuncAddr)decrypt_8,
+        (pUpdateKeyFuncAddr)updatekey_5
+    },
+
+     //第e种
+    {
+        0xa3,
+        0x1f,
+        0x549,
+        0x800,
+        0x11,
+        {0x68,0x00,0x10,0x00,0x08},
+        0xf2,
+        0x5,
+
+        3,  //num waypoint
+        {
+            {1, TRUE, TRUE, 1, {"0F 84", "74"}, {2,1},{4,1}, 1, {"21 6B 14","01 6B 14"}, {0,1}},
+            {3, FALSE,FALSE,1,{"0f 84","74"},{2,1},{4,1},2,{"66 c1 e9 03","66 c1 e9 04"},{2,3}},
+            {4, FALSE,FALSE,0,{0},{0},{0},1,{"87 f1"},{4}}
+        },
+        7,
+        TRUE,
+        "8d 49 00",
+        3,
+        (pEncryptFuncAddr)encrypt_7,
+        (pDecryptFuncAddr)decrypt_7,
+        (pUpdateKeyFuncAddr)updatekey_4
     }
+
 
 };
 
@@ -301,7 +404,7 @@ void updatekey_2(WORD* key, WORD dw_key_sig, WORD times)
         movzx ecx, times
 
 fuck_2_u :
-        xchg ah,al
+        rol ax,4
         imul dw_key_sig
         dec ecx
         
@@ -334,7 +437,32 @@ fuck_3_u :
     }
     *key = temp;
 }
+void updatekey_4(WORD* key, WORD dw_key_sig, WORD times)
+{
+    WORD temp = *key;
+    __asm
+    {
+        pushfd
+        pushad
+        movzx eax, temp
+        movzx ecx, times
 
+fuck_4_u :
+        xchg al,ah
+        imul dw_key_sig
+        dec ecx
+        
+        jnz fuck_4_u
+        mov temp,ax
+        popad
+        popfd
+    }
+    *key = temp;
+}
+void updatekey_5(WORD* key, WORD dw_key_sig, WORD times)
+{
+    ;  //什么都不干
+}
 
 //基本不同的算法之间只需要替换标号与jnz之间的段就行了. 标号得重新改名
 void encrypt_1(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
@@ -494,7 +622,7 @@ void encrypt_4(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
 
 fuck_4_e:
         xor [eax], dl
-        xchg dh, dl
+        rol dx, 4
         imul edx,dw_key_sig
         inc eax
         dec ecx
@@ -517,7 +645,7 @@ void decrypt_4(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
 
 fuck_4_d :
         xor [eax], dl
-        xchg dh, dl
+        rol dx,4
         imul edx, dw_key_sig
         inc eax
         dec ecx
@@ -621,4 +749,96 @@ fuck_6_d :
         popfd
 	}
 }
+
+void encrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+        movzx dx,key
+        mov eax,data
+        movzx ecx,decryptsize
+
+fuck_7_e:
+        xor [eax], dl
+        xchg dl,dh
+        imul edx,dw_key_sig
+        inc eax
+        dec ecx
+        jnz fuck_7_e
+
+        popad
+        popfd
+    }
+}
+void decrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+
+        movzx dx, key
+        mov eax, data
+        movzx ecx, decryptsize
+
+fuck_7_d :
+        xor [eax], dl
+        xchg dl,dh
+        imul edx, dw_key_sig
+        inc eax
+        dec ecx
+        jnz fuck_7_d
+		
+        popad
+        popfd
+	}
+}
+
+
+void encrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+        movzx dx,key
+        mov eax,data
+        movzx ecx,decryptsize
+
+fuck_8_e:
+        add [eax], dl
+        xor [eax], dh
+        inc eax
+        dec ecx
+        jnz fuck_8_e
+
+        popad
+        popfd
+    }
+}
+void decrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+
+        movzx dx, key
+        mov eax, data
+        movzx ecx, decryptsize
+
+fuck_8_d :
+        xor [eax], dh
+        sub [eax], dl
+        inc eax
+        dec ecx
+        jnz fuck_8_d
+		
+        popad
+        popfd
+	}
+}
+
 
