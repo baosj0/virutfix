@@ -1,5 +1,5 @@
 //fucked by baoshijin
-//last modified date: 2019.1.9
+//last modified date: 2019.1.12
 
 
 
@@ -176,15 +176,10 @@ DWORD sig_confirmed_x20[] =
 
 
 
-//-1 代表未知
-//0  代表不是
-//1  代表旧一代0x1e8 0x3d34  有微变变种
-//2  代表新一代0x300 0x66e4  有微变变种
-//3  代表0x28大类virut变种
-//4  代表0x2C大类virut变种
-//5  代表0x30大类virut变种
-//6  代表0x1C大类virut变种
-//0x666 代表可能是多重感染变种, 不处理.
+
+
+//这个函数用处不大, 暂时放着. 别用.
+//我直接用代码里的标志判断是哪一代. 一代有多个变种标志值, 但仍然是一代.
 DWORD MatchVirutCE1(BYTE* data)
 {
 	
@@ -232,6 +227,8 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	int calc_backupvaluemethod = 0;       //1 代表加法  2代表xor 3代表减法
 	int oepsearchpos = 0, oepremainbytes = 0;
 	BYTE *pcode = NULL;
+    DWORD dwTemp = 0;
+    BOOL success = FALSE;
 
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
@@ -240,14 +237,8 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 		goto end1;
 	}
 
-	if (bScanOnly)
-	{
-		hFile = CreateFile(szFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	}
-	else
-	{
-		hFile = CreateFile(szFileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-	}
+	
+    hFile = CreateFile(szFileName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -262,45 +253,15 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 		result = -1;
 		goto end2;
 	}
-
-
-	if (bScanOnly)
-	{
-		hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, NULL, NULL, NULL);
-	}
-	else
-	{
-		hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, NULL, NULL, NULL);
-	}
-
-	if (hFileMapping == NULL)
-	{
-		if (bScanOnly == FALSE)
-		{
-			goto end3;
-		}
-		DWORD dwTemp = 0;
-		data = (BYTE*)malloc(dwFileSize);
-		ReadFile(hFile, data, dwFileSize, &dwTemp, NULL);
-		bFreeFlag = TRUE;
-		if (dwTemp != dwFileSize)
-		{
-			result = -1;
-			goto end3;
-		}
-
-		goto new1;
-	}
-
-	if (bScanOnly)
-	{
-		data = (BYTE*)MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
-	}
-	else
-	{
-		data = (BYTE*)MapViewOfFile(hFileMapping, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, 0);
-	}
-
+ 
+    data = (BYTE*)malloc(dwFileSize);
+    ReadFile(hFile, data, dwFileSize, &dwTemp, NULL);
+    bFreeFlag = TRUE;
+    if (dwTemp != dwFileSize)
+    {
+        result = -1;
+        goto end3;
+    }
 
 	if (data == 0)
 	{
@@ -308,18 +269,18 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 		goto end3;
 	}
 
-new1:
+
 	pidh = (PIMAGE_DOS_HEADER)data;
 
 	if (pidh->e_magic != IMAGE_DOS_SIGNATURE)
 	{
-		result = 2;
+		result = -1;
 		goto end4;
 	}
 
-	if ((DWORD)pidh->e_lfanew > 0x10000) 
+	if ((DWORD)pidh->e_lfanew >= 0x10000) 
 	{
-		result = 2;
+		result = -1;
 		goto end4;
 	}
 
@@ -329,7 +290,7 @@ new1:
 
 	if (pinh->Signature != IMAGE_NT_SIGNATURE)
 	{
-		result = 2;
+		result = -1;
 		goto end4;
 	}
 
@@ -343,21 +304,18 @@ new1:
 		goto end4;
 	}
 
-	//virut.ce,bt   由于这个有很多微小变化的变种,所以就分开处理
-	//后来发现没必要分开处理, 就全部合在一起..
-	//virutkind == 1, 代表是旧一代的, 前头部分大小为0x1e8, body大小在0x3000~0x4000
-	//virutkind == 2, 代表是新一代的, 前头部分大小为0x300, body大小在0x6000~0x7000
+	
 
-	virutkind = MatchVirutCE1(data);
-	//第一大类, data+20有标记类型变种的处理
-	if (virutkind == 1 || virutkind == -1 || virutkind == 2)
+	//virutkind = MatchVirutCE1(data);
+	
+	if (1 == 1)
 	{
 #if DEBUG
-		if (virutkind == 1)
-		{
-			printf("确认为已知变种1, 开始进行处理\n");
-		}
-		if (virutkind == -1)
+        /*if (virutkind == 1)
+        {
+            printf("确认为已知变种1, 开始进行处理\n");
+        }*/
+		if (1 == 1)
 		{
 #if MYTEST
 			PIMAGE_SECTION_HEADER pjunk = &pish[pinh->FileHeader.NumberOfSections - 1];
@@ -368,9 +326,6 @@ new1:
 			{
 				if (pjunk->Misc.VirtualSize == 0x1000 && pjunk->Characteristics == 0xc000'0000 && pjunk->SizeOfRawData == 0)
 				{
-					virutkind = 2;
-					printf("可能为已知变种2或4, 开始进行处理\n");
-
 					//先修复PE头的问题. 
 					// | xx | 00000   ==>  |xx | yy
 					// | xx | kkkk    ==>  |xx|yy|kkkk
@@ -533,7 +488,7 @@ new1:
 						hook1pos_RVA = oep + i;
 						CodeEntry2_RVA = dest;
 #if DEBUG
-						printf("HOOK点1跳到了尾节: hook点1%x 节尾%x\n", hook1pos_RVA, dest);
+						printf("HOOK点1跳到了尾节: hook点1 %x 节尾%x\n", hook1pos_RVA, dest);
 #endif // DEBUG
 						
 						break;
@@ -1162,7 +1117,7 @@ refuck:
 				
 				for (int i = 0; i < 0x30 * 0xf; )  //根据概率, 绝对够用了.
 				{
-
+                    //先验证标志, 然后再看跳不跳.. 这样跳跃也能够作为标志.
 					for (int j = 0; j < FuckedVirut[virutkind].num_waypoint; ++j)
 					{
 						if (FuckedVirut[virutkind].mypath[j].nume8call == num_e8call)  //找到当前的e8call
@@ -1350,7 +1305,7 @@ refuck:
 					{
 						i += insn[0].size;
 						cs_free(insn, count);
-						if (i >= 0x100)
+						if (i >= 0x30*0xf)  //靠, 就因为这个我找了半天..org
 						{
 							if (virutkind < MAXKIND)
 							{
@@ -1368,6 +1323,12 @@ refuck:
 					}
 					else
 					{
+                        if (i < 0x30*0xf)
+                        {
+                            i += 1;
+                            continue;
+                        }
+
 						if (virutkind < MAXKIND)
 						{
 #if DEBUG
@@ -1482,7 +1443,7 @@ nextpos:
 				//新一代中是包含before_offset b4的block 
 				//半新代是包含before_offset c2的block
 				//virutkind==4是找b5的块
-				for (int i = 0; i < 0x100; ++i)
+				for (int i = 0; i < 0x100; ++i)   //0x100块
 				{
 					PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
 				
@@ -1503,7 +1464,7 @@ nextpos:
 				DWORD Recover2_Value;
 				BOOL b1find = FALSE, b2find = FALSE;
 
-				for (int i = 0; i < 0x100; )
+				for (int i = 0; i<0x1000; )   //在d7366c5e, 发现了奇葩的block_descript  我这边就直接0x1000个字节
 				{
 					if (*(pSearch + i) == 0xc6 && *(pSearch + i + 1) == 0x05)    //mov <va1>,db
 					{
@@ -1542,7 +1503,7 @@ nextpos:
 					{
 						i += insn[0].size;
 						cs_free(insn, count);
-						if (i >= 0x100)
+						if (i >= 0x1000)
 						{
 #if DEBUG
 							printf("找那两条mov指令位置出错\n");
@@ -1621,7 +1582,7 @@ nextpos:
 								calc_backupvaluemethod = 3;
 								break;
 							}
-						}else if (virutkind == 8)
+						}else if (virutkind == 8 || virutkind == 0xa|| virutkind == 0xf || virutkind == 0x10)
 						{
 							if (sig_cmp(pSearch + i, "bd"))   //mov ebp, dd_backvalue2
 							{
@@ -1629,12 +1590,10 @@ nextpos:
 #if DEBUG
 								printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
+                                calc_backupvaluemethod = 1;
+                                break;
 							}
-							if (sig_cmp(pSearch + i, "0f c1 6c 24 20")) //xadd [esp+20],ebp
-							{
-								calc_backupvaluemethod = 1;
-								break;
-							}
+							
 						}else if (virutkind == 6)
 						{
 							if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
@@ -1664,19 +1623,7 @@ nextpos:
                                 break;
                             }
                         }
-                        else if (virutkind == 0xa)
-                        {
-                            if (sig_cmp(pSearch + i, "bd"))   //mov ebp, dd_backvalue2
-                            {
-                                calc_backupvaluemethod = 1;       //这变种居然把那个放外面去了..
-                                backvalue2 = *(int*)(pSearch + i + 1);
-#if DEBUG
-                                printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-                                break;
-                            }
-                        }
-                        else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe)
+                        else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe || virutkind == 0x11)
                         {
                             if (sig_cmp(pSearch + i, "81 ed"))
                             {
@@ -1819,7 +1766,6 @@ nextpos:
 			pLastSec->SizeOfRawData -= LastSectionReduce_RSize;
 			pinh->OptionalHeader.SizeOfImage -= LastSectionReduce_VSize;
 
-			AdjustSize = TRUE;
 			dwFileSize -= LastSectionReduce_RSize;
 
 			//如果这个样本有入口节病毒代码
@@ -1851,18 +1797,20 @@ nextpos:
 			}
 
 			//清除感染标记
-			if (virutkind == 1)
-			{
-				*(DWORD*)(data + 0x20) = 0;
-			}else if (virutkind == 8)
-			{
+            /*if (virutkind == 1)
+            {
+                *(DWORD*)(data + 0x20) = 0;
+            }else if (virutkind == 8)
+            {
                 *(DWORD*)(data + 0x24) = 0;
             }
             else
             {
                 pinh->FileHeader.TimeDateStamp = 0;
-            }
+            }*/
 			
+            success = TRUE;
+
 		} // end of if codeentry2
 
 	}
@@ -1876,30 +1824,40 @@ nextpos:
 
 end4:
 
+    if (success)
+    {
+#if DEBUG
+        printf("修复成功,开始写入数据\n");
+#endif
+        DWORD byteswritten = 0;
+        SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+        WriteFile(hFile, data, dwFileSize, &byteswritten, NULL);
+        if (byteswritten != dwFileSize)
+        {
+#if DEBUG
+            printf("修复后的数据写入失败\n");
+#endif
+        }
+        else
+        {
+#if DEBUG
+            printf("文件修复成功\n");
+#endif
+            SetFilePointer(hFile, dwFileSize, NULL, FILE_BEGIN);
+            SetEndOfFile(hFile);
+            
+        }
+    }
 
 
-
-	if (bFreeFlag)
-	{
-		free(data);
-	}
-	else
-	{
-		UnmapViewOfFile(data);
-	}
+    free(data);
 
 end3:
 
-	CloseHandle(hFileMapping);
+    ;
 
 
 end2:
-
-	if (AdjustSize)
-	{
-		SetFilePointer(hFile, dwFileSize, NULL, FILE_BEGIN);
-		SetEndOfFile(hFile);
-	}
 
 
 	CloseHandle(hFile);
@@ -1936,6 +1894,7 @@ int main()
         printf("\n\n");
     } while (FindNextFile(hFind, &data));
 
+    FindClose(hFind);
 
 	return 0;
 }

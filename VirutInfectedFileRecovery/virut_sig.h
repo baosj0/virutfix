@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-#define MAXKIND 14        //当前处理的变种数量
+#define MAXKIND 18        //当前处理的变种数量
 
 typedef void (*pEncryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 typedef void (*pDecryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
@@ -59,10 +59,10 @@ extern void updatekey_2(WORD* key, WORD dw_key_sig, WORD times);
 //virutkind a
 extern void updatekey_3(WORD* key, WORD dw_key_sig, WORD times);
 
-//virutkind b c
+//virutkind b c e f 12
 extern void updatekey_4(WORD* key, WORD dw_key_sig, WORD times);
 
-//virutkind d
+//virutkind d 11
 extern void updatekey_5(WORD* key, WORD dw_key_sig, WORD times);
 
 
@@ -91,10 +91,14 @@ extern void decrypt_5(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void encrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
-//virutkind b  c
+//virutkind b c e f 12
 extern void encrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
-//virutkind d
+//virutkind d 11
 extern void encrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 10
+extern void encrypt_9(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_9(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
