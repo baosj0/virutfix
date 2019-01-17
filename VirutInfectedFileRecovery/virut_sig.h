@@ -2,7 +2,21 @@
 
 #include <windows.h>
 
-#define MAXKIND 18        //当前处理的变种数量
+#define MAXKIND 34        //当前处理的变种数量
+
+#define rol( a , o ) \
+((a<<(o%0x20)) | (a>>(0x20 - (o%0x20))))
+#define ror( a , o ) \
+((a>>(o%0x20)) | (a<<(0x20 - (o%0x20))))
+
+extern BOOL getCFbyte(BYTE b1, BYTE b2, BOOL cf);
+extern BOOL getCFword(WORD w1, WORD w2, BOOL cf);
+extern BOOL getCFdword(DWORD d1, DWORD d2, BOOL cf);
+
+extern BOOL getCFbyte_sbb(BYTE b1, BYTE b2, BOOL cf);
+extern BOOL getCFword_sbb(WORD w1, WORD w2, BOOL cf);
+extern BOOL getCFdword_sbb(DWORD d1, DWORD d2, BOOL cf);
+
 
 typedef void (*pEncryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 typedef void (*pDecryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
@@ -32,6 +46,8 @@ typedef struct sig_struct
 	BYTE db_before_sig[0x10];
     WORD db_before_sig_offset_from_body;
     BYTE db_before_sig_len;
+    BYTE bjmpback;
+    const char* jmpbackins;
 
 	BYTE num_waypoint;  //该病毒尾节代码多少个路径点
 	waypoint mypath[0x20];                          //数组的元素, nume8call从小到大且唯一
@@ -50,20 +66,26 @@ extern sig_struct FuckedVirut[MAXKIND + 1];
 
 //有些加解密其实是一样的函数, 但我还是写了两份
 
-//virutkind 1 2 3 4 5 6 7 的迭代key方式
+//virutkind 1 2 3 4 5 6 7 
 extern void updatekey_1(WORD* key, WORD dw_key_sig, WORD times);
 
-//virutkind 8  的迭代key方式
+//virutkind 8 16 19
 extern void updatekey_2(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind a
 extern void updatekey_3(WORD* key, WORD dw_key_sig, WORD times);
 
-//virutkind b c e f 12
+//virutkind b c e f 12 13 14 15 1a
 extern void updatekey_4(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind d 11
 extern void updatekey_5(WORD* key, WORD dw_key_sig, WORD times);
+
+//virutkind 17
+extern void updatekey_6(WORD* key, WORD dw_key_sig, WORD times);
+
+//virutkind 18
+extern void updatekey_7(WORD* key, WORD dw_key_sig, WORD times);
 
 
 //virutkind 1 的加解密相关函数
@@ -91,7 +113,7 @@ extern void decrypt_5(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void encrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_6(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
-//virutkind b c e f 12
+//virutkind b c e f 12 13 14 15 1a
 extern void encrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
@@ -99,6 +121,14 @@ extern void decrypt_7(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void encrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_8(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
-//virutkind 10
+//virutkind 10 16 19
 extern void encrypt_9(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_9(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 17
+extern void encrypt_a(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_a(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 18
+extern void encrypt_b(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_b(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);

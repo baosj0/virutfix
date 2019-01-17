@@ -229,6 +229,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	BYTE *pcode = NULL;
     DWORD dwTemp = 0;
     BOOL success = FALSE;
+    DWORD reCrackOff = 0;
 
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
@@ -254,7 +255,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 		goto end2;
 	}
  
-    data = (BYTE*)malloc(dwFileSize);
+    data = (BYTE*)VirtualAlloc(NULL, dwFileSize, 0x3000, PAGE_READWRITE);
     ReadFile(hFile, data, dwFileSize, &dwTemp, NULL);
     bFreeFlag = TRUE;
     if (dwTemp != dwFileSize)
@@ -429,6 +430,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 			if (pOepSec->VirtualAddress + pOepSec->SizeOfRawData - pinh->OptionalHeader.FileAlignment <= oep &&
 				oep <= pOepSec->VirtualAddress + pOepSec->SizeOfRawData)
 			{
+                hasHook1 = FALSE;
 #if DEBUG
 				printf("入口点在入口节节尾\n");
 #endif // DEBUG
@@ -436,7 +438,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 				goto FuckCode1;
 			}
 		}
-		hasHook1 = TRUE;
+		
 
 		//条件应该都判断完了.. 此时一切都为了找到那0x3d34的起始位置.
 		//如果CodeEntry2_RVA存在, 那么直接解析尾节E9,EB找到最后一段的位置.
@@ -544,7 +546,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 			int indexAll[10] = { 0 };
 			DWORD key1 = 0;
 			DWORD key1All[10] = { 0 };
-			int method = -1; //1表示add, 0表示sub  初始为-1,这样出现意外情况时,使其出错
+			int method = -1; //1表示add, 0表示sub 2表示rol 3表示ror 4表示adc 5表示sbb 初始为-1,这样出现意外情况时,使其出错
 			int methodAll[10] = { -1,-1,-1,-1,-1,-1,-1,-1,-1,-1 };
 			int indexAll_Block2[10] = { 0 };
 			int decryptsize = 0;  //1, 2, 4.
@@ -559,7 +561,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 						if (*(pcode + i) >= 0xb8 && *(pcode + i) <= 0xba)
 						{
 							CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
-							if (CodeEntry2_base_size <= 0x7000 && CodeEntry2_base_size >= 0x3000)
+							if (CodeEntry2_base_size <= 0x8000 && CodeEntry2_base_size >= 0x200)
 							{							
 								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
 								block1_confirmed = 1;                                        //有干扰项.虽然此处yyy大于0x10000直接被排除, 但为了保险, 还是用几块同时确定比较保险.
@@ -619,6 +621,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 					if (jmptimes == 1 || jmptimes == 2)
 					{
+                        //add dword; sub dword
 						if (*(pcode + i) == 0x81 && (*(pcode + i + 1) == 0x80 || *(pcode + i + 1) == 0x81 ||
 							*(pcode + i + 1) == 0x82 || *(pcode + i + 1) == 0xa8 || *(pcode + i + 1) == 0xa9 || *(pcode + i + 1) == 0xaa))
 						{
@@ -653,6 +656,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 							
 						}
 
+                        //add byte;sub byte
 						if (*(pcode + i) == 0x80 && (*(pcode + i + 1) == 0x80 || *(pcode + i + 1) == 0x81 ||
 							*(pcode + i + 1) == 0x82 || *(pcode + i + 1) == 0xa8 || *(pcode + i + 1) == 0xa9 || *(pcode + i + 1) == 0xaa))
 						{
@@ -685,6 +689,74 @@ damn = "加法add";
 							}
 						}
 
+                        //add word; sub word
+                        if (*(pcode + i) == 0x66 && *(pcode + i + 1) == 0x81 && (*(pcode + i + 2) == 0x80 || *(pcode + i + 2) == 0x81 ||
+                            *(pcode + i + 2) == 0x82 || *(pcode + i + 2) == 0xa8 || *(pcode + i + 2) == 0xa9 || *(pcode + i + 2) == 0xaa))
+                        {
+                            if (*(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+                                *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+                            {
+                                decryptsize = 2;
+                                block2_confirmed = 1;
+
+                                CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase;
+                                key1All[numofblock2_trueins] = *(WORD*)(pcode + i + 7);
+                                const char *damn = "不知道";
+
+                                if ((*(pcode + i + 2) - 0x80 >= 0) && (*(pcode + i + 2) - 0x80) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x80;
+                                    methodAll[numofblock2_trueins] = 1;
+                                    damn = "加法add";
+                                }
+                                if ((*(pcode + i + 2) - 0xa8 >= 0) && (*(pcode + i + 2) - 0xa8) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0xa8;
+                                    methodAll[numofblock2_trueins] = 0;
+                                    damn = "减法sub";
+                                }
+#if DEBUG
+                                printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
+#endif // DEBUG
+                                ++numofblock2_trueins;
+
+                            }
+                        }
+
+                        //adc byte;sbb byte
+                        if (*(pcode + i) == 0x80 && (*(pcode + i + 1) == 0x90 || *(pcode + i + 1) == 0x91 ||
+                            *(pcode + i + 1) == 0x92 || *(pcode + i + 1) == 0x98 || *(pcode + i + 1) == 0x99 || *(pcode + i + 1) == 0x9a))
+                        {
+                            if (*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+                                *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+                            {
+                                decryptsize = 1;
+                                block2_confirmed = 1;
+
+                                CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
+                                key1All[numofblock2_trueins] = *(BYTE*)(pcode + i + 6);
+                                const char *damn = "不知道";
+
+                                if ((*(pcode + i + 1) - 0x90 >= 0) && (*(pcode + i + 1) - 0x90) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x90;
+                                    methodAll[numofblock2_trueins] = 4;
+                                    damn = "加法adc";
+                                }
+                                if ((*(pcode + i + 1) - 0x98 >= 0) && (*(pcode + i + 1) - 0x98) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x98;
+                                    methodAll[numofblock2_trueins] = 5;
+                                    damn = "减法sbb";
+                                }
+#if DEBUG
+                                printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
+#endif // DEBUG
+                                ++numofblock2_trueins;
+                            }
+                        }
+
+                        //adc word; sbb word
 						if (*(pcode + i) == 0x66 && *(pcode + i + 1) == 0x81 && (*(pcode + i + 2) == 0x90 || *(pcode + i + 2) == 0x91 ||
 							*(pcode + i + 2) == 0x92 || *(pcode + i + 2) == 0x98 || *(pcode + i + 2) == 0x99 || *(pcode + i + 2) == 0x9a))
 						{
@@ -701,13 +773,13 @@ damn = "加法add";
 								if ((*(pcode + i + 2) - 0x90 >= 0) && (*(pcode + i + 2) - 0x90) <= 2)
 								{
 									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x90;
-									methodAll[numofblock2_trueins] = 1;
+									methodAll[numofblock2_trueins] = 4;
 									damn = "加法adc";
 								}
 								if ((*(pcode + i + 2) - 0x98 >= 0) && (*(pcode + i + 2) - 0x98) <= 2)
 								{
 									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x98;
-									methodAll[numofblock2_trueins] = 0;
+									methodAll[numofblock2_trueins] = 5;
 									damn = "减法sbb";
 								}
 #if DEBUG
@@ -718,39 +790,39 @@ damn = "加法add";
 							}
 						}
 
-						if (*(pcode + i) == 0x66 && *(pcode + i + 1) == 0x81 && (*(pcode + i + 2) == 0x80 || *(pcode + i + 2) == 0x81 ||
-							*(pcode + i + 2) == 0x82 || *(pcode + i + 2) == 0xa8 || *(pcode + i + 2) == 0xa9 || *(pcode + i + 2) == 0xaa))
-						{
-							if (*(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
-								*(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
-							{
-								decryptsize = 2;
-								block2_confirmed = 1;
-								
-								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 3) - pinh->OptionalHeader.ImageBase;
-								key1All[numofblock2_trueins] = *(WORD*)(pcode + i + 7);
-								const char *damn = "不知道";
+                       
+                        //rol dword byte; ror dword byte
+                        if (*(pcode + i) == 0xc1 && (*(pcode + i + 1) == 0x80 || *(pcode + i + 1) == 0x81 ||
+                            *(pcode + i + 1) == 0x82 || *(pcode + i + 1) == 0x88 || *(pcode + i + 1) == 0x89 || *(pcode + i + 1) == 0x8a))
+                        {
+                            if (*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+                                *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+                            {
+                                decryptsize = 4;
+                                block2_confirmed = 1;
 
-								if ((*(pcode + i + 2) - 0x80 >= 0) && (*(pcode + i + 2) - 0x80) <= 2)
-								{
-									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0x80;
-									methodAll[numofblock2_trueins] = 1;
-									damn = "加法add";
-								}
-								if ((*(pcode + i + 2) - 0xa8 >= 0) && (*(pcode + i + 2) - 0xa8) <= 2)
-								{
-									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 2) - 0xa8;
-									methodAll[numofblock2_trueins] = 0;
-									damn = "减法sub";
-								}
+                                CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
+                                key1All[numofblock2_trueins] = *(BYTE*)(pcode + i + 6);
+                                const char *damn = "不知道";
+
+                                if ((*(pcode + i + 1) - 0x80 >= 0) && (*(pcode + i + 1) - 0x80) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x80;
+                                    methodAll[numofblock2_trueins] = 2;
+                                    damn = "rol";
+                                }
+                                if ((*(pcode + i + 1) - 0x88 >= 0) && (*(pcode + i + 1) - 0x88) <= 2)
+                                {
+                                    indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x88;
+                                    methodAll[numofblock2_trueins] = 3;
+                                    damn = "ror";
+                                }
 #if DEBUG
-								printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
+                                printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
 #endif // DEBUG
-								++numofblock2_trueins;
-
-							}
-						}
-
+                                ++numofblock2_trueins;
+                            }
+                        }
 
 
 					}
@@ -758,24 +830,35 @@ damn = "加法add";
 					if (jmptimes == 2 || jmptimes == 3)
 					{
 						if (*(pcode + i) == 0x83 && *(pcode + i + 2) == 4 &&
-							(*(pcode + i + 1) == 0xe8 || *(pcode + i + 1) == 0xe9 || *(pcode + i + 1) == 0xea))
+							(*(pcode + i + 1) == 0xe8 || *(pcode + i + 1) == 0xe9 || *(pcode + i + 1) == 0xea))  //sub eax/ecx/edx,4
 						{
 							index = *(pcode + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
 							block3_confirmed = 1;
 						}
 
 						if (*(pcode + i) == 0x83 && *(pcode + i + 2) == 2 &&
-							(*(pcode + i + 1) == 0xe8 || *(pcode + i + 1) == 0xe9 || *(pcode + i + 1) == 0xea))
+							(*(pcode + i + 1) == 0xe8 || *(pcode + i + 1) == 0xe9 || *(pcode + i + 1) == 0xea))  //sub eax/ecx/edx,2
 						{
 							index = *(pcode + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
 							block3_confirmed = 1;
 						}
 
-						if (*(pcode + i) == 0x48 || *(pcode + i + 1) == 0x49 || *(pcode + i + 1) == 0x4a)
+						if (*(pcode + i) == 0x48 || *(pcode + i + 1) == 0x49 || *(pcode + i + 1) == 0x4a)  //dec eax/ecx/edx
 						{
 							index = *(pcode + i) - 0x48;
 							block3_confirmed = 1;
 						}
+
+                        if (*(pcode + i) == 0x83 && *(pcode + i + 2) == 0xfc &&                //add eax/ecx/edx,-4
+                            (*(pcode + i + 1) == 0xc0 || *(pcode + i + 1) == 0xc1 || *(pcode + i + 1) == 0xc2))
+                        {
+                            index = *(pcode + i + 1) - 0xc0;   //这个用于临时保存第三块的使用的寄存器索引.
+                            block3_confirmed = 1;
+                        }
+
+
+
+
 
 					}
 
@@ -1057,23 +1140,93 @@ oepvir_decode:
 				}
 			}
 
-			
+			//0 add 1 sub 2 rol 3 ror 4 adc 5 sbb
 
 			DWORD *pTemp = (DWORD*)(data + RVA2FO(pish, numOfSections, CodeEntry2_base_RVA));
-
-			for (int i = 0; i <= CodeEntry2_base_size / decryptsize ;++i)
+            BOOL cf = 0;
+			for (int i = CodeEntry2_base_size / decryptsize; i >= 0 ; --i)  //CodeEntry2_base_size 为以decryptsize为单位的数目, 所以这里不需要除以decryptsize
 			{
 				if (decryptsize == 1)
 				{
-					*((BYTE*)pTemp + i) = method ? *((BYTE*)pTemp + i) + LOBYTE(key1) : *((BYTE*)pTemp + i) - LOBYTE(key1);
+                    if (method == 0 || method == 1)
+                    {
+                        *((BYTE*)pTemp + i ) = method == 1 ? *((BYTE*)pTemp + i) + LOBYTE(key1) : *((BYTE*)pTemp + i) - LOBYTE(key1);
+                    }
+                    
+                    if (method == 2 || method == 3)
+                    {
+                        *((BYTE*)pTemp + i) = method == 2 ? rol(*((BYTE*)pTemp + i), key1) : ror(*((BYTE*)pTemp + i), key1);
+                    }
+
+                    if (method == 4)
+                    {
+                        BYTE tempbyte = *((BYTE*)pTemp + i);
+                        *((BYTE*)pTemp + i) = *((BYTE*)pTemp + i) + LOBYTE(key1) + cf;
+                        cf = getCFbyte(tempbyte, LOBYTE(key1), cf);
+                    }
+
+                    if (method == 5)
+                    {
+                        BYTE tempbyte = *((BYTE*)pTemp + i);
+                        *((BYTE*)pTemp + i) = *((BYTE*)pTemp + i) - LOBYTE(key1) - cf;
+                        cf = getCFbyte_sbb(tempbyte, LOBYTE(key1), cf);
+                    }
+
+                    			
 				}
 				if (decryptsize == 2)
 				{
-					*((WORD*)pTemp + i) = method ? *((WORD*)pTemp + i) + LOWORD(key1) : *((WORD*)pTemp + i) - LOWORD(key1);
+					if (method == 1 || method == 0)
+					{
+						*((WORD*)pTemp + i) = method ? *((WORD*)pTemp + i) + LOWORD(key1) : *((WORD*)pTemp + i) - LOWORD(key1);
+					}
+
+                    if (method == 2 || method == 3)
+                    {
+                        *((WORD*)pTemp + i) = method == 2 ? rol(*((WORD*)pTemp + i), key1) : ror(*((WORD*)pTemp + i), key1);
+                    }
+
+                    if (method == 4)
+                    {
+                        WORD tempword = *((WORD*)pTemp + i);
+                        *((WORD*)pTemp + i) = *((WORD*)pTemp + i) + LOWORD(key1) + cf;
+                        cf = getCFword(tempword + cf, LOWORD(key1), cf);
+                    }
+
+                    if (method == 5)
+                    {
+                        WORD tempword = *((WORD*)pTemp + i);
+                        *((WORD*)pTemp + i) = *((WORD*)pTemp + i) - LOWORD(key1) - cf;
+                        cf = getCFword_sbb(tempword, LOBYTE(key1), cf);
+                    }
+
 				}
 				if (decryptsize == 4)
 				{
-					*((DWORD*)pTemp + i) = method ? *((DWORD*)pTemp + i) + key1 : *((DWORD*)pTemp + i) - key1;
+					if (method == 1 || method == 0)
+					{
+						*((DWORD*)pTemp + i) = method ? *((DWORD*)pTemp + i) + key1 : *((DWORD*)pTemp + i) - key1;
+					}
+
+                    if (method == 2 || method == 3)
+                    {
+                        *((DWORD*)pTemp + i) = method == 2 ? rol(*((DWORD*)pTemp + i), key1) : ror(*((DWORD*)pTemp + i), key1);
+                    }
+                    
+                    if (method == 4)
+                    {
+                        DWORD tempdword = *((DWORD*)pTemp + i);
+                        *((DWORD*)pTemp + i) = *((DWORD*)pTemp + i) + key1 + cf;
+                        cf = getCFdword(tempdword + cf, key1, cf);
+                    }
+
+                    if (method == 5)
+                    {
+                        DWORD tempdword = *((DWORD*)pTemp + i);
+                        *((DWORD*)pTemp + i) = *((DWORD*)pTemp + i) - key1 - cf;
+                        cf = getCFdword_sbb(tempdword + cf, key1, cf);
+                    }
+
 				}
 			}
 
@@ -1155,11 +1308,22 @@ refuck:
 
 							}
 
+                            
 
 							break;  //确认完了就直接break; 不需要继续循环了, 因为num_e8call是唯一的.
 
 						}// end of xxx == nume8call
 					}
+
+                    if (FuckedVirut[virutkind].bjmpback == TRUE && num_e8call == 1)
+                    {
+                        if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].jmpbackins))
+                        {
+                            nextRVA = backvalue1 - pinh->OptionalHeader.ImageBase;
+                            goto nextpos;
+                        }
+                    }
+
 
 					if (num_e8call == FuckedVirut[virutkind].lastnume8call && *(pLastCode + i) == 0xc3)
 					{
@@ -1323,12 +1487,7 @@ refuck:
 					}
 					else
 					{
-                        if (i < 0x30*0xf)
-                        {
-                            i += 1;
-                            continue;
-                        }
-
+                       
 						if (virutkind < MAXKIND)
 						{
 #if DEBUG
@@ -1364,18 +1523,20 @@ nextpos:
 				}
 			}//end of while(1)
 
+            
 		outofwhile:
 
 			// 现在bodybase_RVA有了, 准备去解密bodybase_RVA+0x53c处的数据
 			//+539 00 c3  利用这两个数据, 利用加密算法的漏洞算出key, 
-			WORD keyfull;
+			WORD keyfull = 0;
 			BYTE* pBlock = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;  
+            
 
-            BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + FuckedVirut[virutkind].db_before_sig_offset_from_body;
+            BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + FuckedVirut[virutkind].db_before_sig_offset_from_body + reCrackOff;
 
-            pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset - 1;
+            pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset + reCrackOff - 1;
             BOOL found = FALSE;
-
+            
             for (DWORD i = 0; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
             {
                 BYTE db_before[0x10] = { 0 };
@@ -1389,19 +1550,36 @@ nextpos:
                     found = TRUE;
                     //说明找到了
                     keyfull = i;
-                    break;
+                    //break;
                 }
             }
 
             if (found == FALSE)
             {
+                if (reCrackOff == 0)
+                {
+#if DEBUG
+                    printf("爆破密钥出错,重试偏移2\n");
+#endif
+                    reCrackOff = 2;
+                    goto outofwhile;
+                }
+                if (reCrackOff == 2)
+                {
+#if DEBUG
+                    printf("爆破密钥出错,重试偏移-2\n");
+#endif
+                    reCrackOff = -2;
+                    goto outofwhile;
+                }
+
 #if DEBUG
                 printf("爆破密钥出错,退出\n");
 #endif
                 goto end4;
             }
 
-            //然后算出body+ block偏移 - 1时的keyfull
+            //然后算出body+ block偏移 + recrackoff - 1时的keyfull          目前是body+ before_off + recrackoff位置              //因为起始和终点都加了同一个值, 所以距离不变, 这边参数不用改.
 
             FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_offset - 1 - FuckedVirut[virutkind].db_before_sig_offset_from_body);
 
@@ -1538,7 +1716,7 @@ nextpos:
 				DWORD CodeToSearch_RVA = 0;
 					
                 //接下来寻找包含backvalue2指令的block 
-                for (int i = 0; i < 0x100; ++i)
+                for (int i = 0; i < 0x1000; ++i)  //在c73a190a 的0x80cd也发现奇葩的, 所以找这个也得很大..
                 {
                     PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
 
@@ -1555,7 +1733,7 @@ nextpos:
 				if (CodeToSearch_RVA)
 				{
 					BYTE *pSearch = data + RVA2FO(pish, numOfSections, CodeToSearch_RVA);
-					for (int i = 0; i < 0x100; )
+					for (int i = 0; i < 0x1000; )   //在c73a190a  的80cd出错, 所以扩大. 然而发现其实是因为反汇编出错导致的出错..
 					{  //有些独特的, 得分开.
 						if (virutkind == 3)
 						{
@@ -1582,7 +1760,10 @@ nextpos:
 								calc_backupvaluemethod = 3;
 								break;
 							}
-						}else if (virutkind == 8 || virutkind == 0xa|| virutkind == 0xf || virutkind == 0x10)
+						}else if (virutkind == 8 || virutkind == 0xa|| virutkind == 0xf || virutkind == 0x10 
+                            || virutkind == 0x16 || virutkind == 0x17 || virutkind == 0x18 || virutkind == 0x19 
+                            || virutkind == 0x1b || virutkind == 0x1c || virutkind == 0x1d || virutkind == 0x1e
+                            || virutkind == 0x1f)
 						{
 							if (sig_cmp(pSearch + i, "bd"))   //mov ebp, dd_backvalue2
 							{
@@ -1594,36 +1775,34 @@ nextpos:
                                 break;
 							}
 							
-						}else if (virutkind == 6)
-						{
-							if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
-							{
-								backvalue2 = *(int*)(pSearch + i + 2);
-#if DEBUG
-								printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-							}
-							if (sig_cmp(pSearch + i, "0f c1 69 fe")) //xadd [ecx-2],ebp
-							{
-								calc_backupvaluemethod = 1;
-								break;
-							}
-						}else if (virutkind == 9)
-						{
+                        }
+                        else if (virutkind == 6)
+                        {
                             if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
                             {
+                                calc_backupvaluemethod = 1;
                                 backvalue2 = *(int*)(pSearch + i + 2);
 #if DEBUG
                                 printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
-                            }
-                            if (sig_cmp(pSearch + i, "01 2b")) //add [ebx], ebp
-                            {
-                                calc_backupvaluemethod = 1;
                                 break;
                             }
                         }
-                        else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe || virutkind == 0x11)
+						else if (virutkind == 9)
+						{
+                            if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
+                            {
+                                backvalue2 = *(int*)(pSearch + i + 2);
+                                calc_backupvaluemethod = 1;
+                                
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }
+                        else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe 
+                            || virutkind == 0x11 || virutkind == 0x1a || virutkind == 0x22)
                         {
                             if (sig_cmp(pSearch + i, "81 ed"))
                             {
@@ -1636,10 +1815,66 @@ nextpos:
 #endif
                                 break;
                             }
+                        }else if (virutkind == 0x12)
+                        {
+                            if (sig_cmp(pSearch + i, "c7 43 14"))   // mov [ebx+0x14], oep_va
+                            {
+                                backvalue1 = 0;
+                                backvalue2 = *(int*)(pSearch + i + 3);
+                                calc_backupvaluemethod = 0;
+                                break;
+                            }
+                        }else if (virutkind == 0x13)
+                        {
+                            if (sig_cmp(pSearch + i, "81 6c 24 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
+                            {
+                                calc_backupvaluemethod = 3;
+                                backvalue2 = *(int*)(pSearch + i + 4);
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }
+                        else if (virutkind == 0x14 || virutkind == 0x15)
+                        {
+                            if (sig_cmp(pSearch + i, "81 6B 13"))  // sub dword ptr [ebx+13h],backvalue2
+                            {
+                                calc_backupvaluemethod = 3;
+                                backvalue2 = *(int*)(pSearch + i + 3);
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }else if (virutkind == 0x20 || virutkind == 0x22)
+                        {
+                            if (sig_cmp(pSearch + i, "68"))
+                            {
+                                calc_backupvaluemethod = 0;
+                                backvalue2 = *(int*)(pSearch + i + 1);
+                                backvalue1 = 0;
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }else if (virutkind == 0x21)
+                        {
+                            if (sig_cmp(pSearch + i, "bd"))
+                            {
+                                calc_backupvaluemethod = 0;
+                                backvalue2 = *(int*)(pSearch + i + 1);
+                                backvalue1 = 0;
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
                         }
 						else
 						{
-							if (sig_cmp(pSearch + i, "81 44 24"))   //add dword ptr [esp+0x24], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..  //还有 esp+0x20的. 于是我直接去了+xx的偏移
+							if (sig_cmp(pSearch + i, "81 44 24 24"))   //add dword ptr [esp+0x24], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..  //还有 esp+0x20的. 于是我直接去了+xx的偏移
 							{
 								calc_backupvaluemethod = 1;
 								backvalue2 = *(int*)(pSearch + i + 4);
@@ -1649,7 +1884,7 @@ nextpos:
 								break;
 							}
 
-							if (sig_cmp(pSearch + i, "81 74 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
+							if (sig_cmp(pSearch + i, "81 74 24 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
 							{
 								calc_backupvaluemethod = 2;
 								backvalue2 = *(int*)(pSearch + i + 4);
@@ -1659,15 +1894,17 @@ nextpos:
 								break;
 							}
 
-							if (sig_cmp(pSearch + i, "81 6c 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
-							{
-								calc_backupvaluemethod = 3;
-								backvalue2 = *(int*)(pSearch + i + 4);
+                            if (sig_cmp(pSearch + i, "81 6c 24 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
+                            {
+                                calc_backupvaluemethod = 3;
+                                backvalue2 = *(int*)(pSearch + i + 4);
 #if DEBUG
-								printf("用于计算回跳点的值2:%x\n", backvalue2);
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
-								break;
-							}
+                                break;
+                            }
+
+							
 
 							if (sig_cmp(pSearch + i, "81 c5"))  //add ebp, dd_backvalue2    目前变种4基准就看到这个, 我顺便把下面两种方式给写了.
 							{
@@ -1706,7 +1943,7 @@ nextpos:
 						{
 							i += insn[0].size;
 							cs_free(insn, count);
-							if (i >= 0x100)
+							if (i >= 0x1000)
 							{
 #if DEBUG
 								printf("找backvalue2指令位置出错\n");
@@ -1716,6 +1953,17 @@ nextpos:
 						}
 						else
 						{
+                            if (i < 0x1000) //在c73a190a的80cd 样本, 反汇编指令出错, 所以加了个这个
+                            {
+                                i += 1;
+#if DEBUG
+                                printf("找backvalue2指令时反汇编出错,跳过该字节\n");
+#endif // DEBUG
+                                continue;
+                            }
+
+
+
 #if DEBUG
 							printf("找backvalue2指令位置出错\n");
 #endif // DEBUG
@@ -1850,12 +2098,11 @@ end4:
     }
 
 
-    free(data);
+    VirtualFree(data, NULL, MEM_DECOMMIT|MEM_RELEASE);
 
 end3:
 
     ;
-
 
 end2:
 
