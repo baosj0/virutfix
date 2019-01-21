@@ -1776,7 +1776,7 @@ nextpos:
 							}
 							
                         }
-                        else if (virutkind == 6)
+                        else if (virutkind == 6 || virutkind == 9)
                         {
                             if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
                             {
@@ -1788,21 +1788,9 @@ nextpos:
                                 break;
                             }
                         }
-						else if (virutkind == 9)
-						{
-                            if (sig_cmp(pSearch + i, "81 f5"))   //xor ebp, dd_backvalue2
-                            {
-                                backvalue2 = *(int*)(pSearch + i + 2);
-                                calc_backupvaluemethod = 1;
-                                
-#if DEBUG
-                                printf("用于计算回跳点的值2:%x\n", backvalue2);
-#endif
-                                break;
-                            }
-                        }
                         else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe 
-                            || virutkind == 0x11 || virutkind == 0x1a || virutkind == 0x22)
+                            || virutkind == 0x11 || virutkind == 0x1a || virutkind == 0x22 || virutkind == 0x23
+                            || virutkind == 0x24 || virutkind == 0x25)
                         {
                             if (sig_cmp(pSearch + i, "81 ed"))
                             {
@@ -1815,13 +1803,26 @@ nextpos:
 #endif
                                 break;
                             }
+                            if (sig_cmp(pSearch + i, "81 c5"))
+                            {
+                                calc_backupvaluemethod = 1;
+                                backvalue2 = *(int*)(pSearch + i + 2);
+                                backvalue1 = 0;        //这个变种很心机啊, 居然把backvalue1清零了..
+#if DEBUG                       
+                                printf("特别的变种,用于计算回跳点的值1:%x\n", backvalue1); //注意,这一行别写在#if DEBUG这行上了.
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+
+
                         }else if (virutkind == 0x12)
                         {
                             if (sig_cmp(pSearch + i, "c7 43 14"))   // mov [ebx+0x14], oep_va
                             {
                                 backvalue1 = 0;
                                 backvalue2 = *(int*)(pSearch + i + 3);
-                                calc_backupvaluemethod = 0;
+                                calc_backupvaluemethod = 1;
                                 break;
                             }
                         }else if (virutkind == 0x13)
@@ -1847,11 +1848,11 @@ nextpos:
 #endif
                                 break;
                             }
-                        }else if (virutkind == 0x20 || virutkind == 0x22)
+                        }else if (virutkind == 0x20 || virutkind == 0x22 || virutkind == 0x28)
                         {
                             if (sig_cmp(pSearch + i, "68"))
                             {
-                                calc_backupvaluemethod = 0;
+                                calc_backupvaluemethod = 1;
                                 backvalue2 = *(int*)(pSearch + i + 1);
                                 backvalue1 = 0;
 #if DEBUG
@@ -1863,7 +1864,20 @@ nextpos:
                         {
                             if (sig_cmp(pSearch + i, "bd"))
                             {
-                                calc_backupvaluemethod = 0;
+                                calc_backupvaluemethod = 1;
+                                backvalue2 = *(int*)(pSearch + i + 1);
+                                backvalue1 = 0;
+#if DEBUG
+                                printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+                                break;
+                            }
+                        }
+                        else if (virutkind == 0x26 || virutkind == 0x27)
+                        {
+                            if (sig_cmp(pSearch + i, "05"))  // add eax,dd_backvalue2
+                            {
+                                calc_backupvaluemethod = 1;
                                 backvalue2 = *(int*)(pSearch + i + 1);
                                 backvalue1 = 0;
 #if DEBUG

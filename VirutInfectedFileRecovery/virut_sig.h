@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-#define MAXKIND 34        //当前处理的变种数量
+#define MAXKIND 40        //当前处理的变种数量
 
 #define rol( a , o ) \
 ((a<<(o%0x20)) | (a>>(0x20 - (o%0x20))))
@@ -66,7 +66,7 @@ extern sig_struct FuckedVirut[MAXKIND + 1];
 
 //有些加解密其实是一样的函数, 但我还是写了两份
 
-//virutkind 1 2 3 4 5 6 7 
+//virutkind 1 2 3 4 5 6 7 25
 extern void updatekey_1(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind 8 16 19
@@ -78,7 +78,7 @@ extern void updatekey_3(WORD* key, WORD dw_key_sig, WORD times);
 //virutkind b c e f 12 13 14 15 1a
 extern void updatekey_4(WORD* key, WORD dw_key_sig, WORD times);
 
-//virutkind d 11
+//virutkind d 11 23 24 26
 extern void updatekey_5(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind 17
@@ -132,3 +132,11 @@ extern void decrypt_a(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 //virutkind 18
 extern void encrypt_b(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_b(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 23 24 26
+extern void encrypt_c(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_c(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 25
+extern void encrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);

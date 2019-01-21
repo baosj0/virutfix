@@ -917,7 +917,157 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_1,
         (pUpdateKeyFuncAddr)updatekey_1
 	},
-    
+
+    //第0x23种
+	{
+		0xa6,
+		0xe,
+		0x543,
+		0x800,
+		0x0,
+		{ 0xeb, 0x01, 0xff, 0x68 },
+        0,
+        4,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 4,{ "8D 5C 24 10","2B ED","81 ED","87 6B 10" }, {0,1,2,3} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"8d 49 00",
+		3,
+        (pEncryptFuncAddr)encrypt_c,
+        (pDecryptFuncAddr)decrypt_c,
+        (pUpdateKeyFuncAddr)updatekey_5
+	},
+    //第0x24种
+	{
+		0xa7,
+		0xe,
+		0x549,
+		0x800,
+		0x0,
+		{ 0xeb, 0x01, 0xff, 0x68 },
+        0,
+        4,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 4,{ "8D 5C 24 10","2B ED","81 ED","87 6C 24 20" }, {0,1,2,3} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"90",
+		1,
+        (pEncryptFuncAddr)encrypt_c,
+        (pDecryptFuncAddr)decrypt_c,
+        (pUpdateKeyFuncAddr)updatekey_5
+	},
+    //第0x25种
+	{
+		0xa1,
+		0xe,
+		0x53f,
+		0x410,
+		0xd,
+		{ 0xeb, 0x01, 0xff, 0xc7, 0x04, 0x24 },
+        0,
+        6,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 4,{ "33 ED","8D 5C 24 04","81 C5","87 6B 1C" }, {0,1,2,3} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"8D 49 00",
+		3,
+        (pEncryptFuncAddr)encrypt_d,
+        (pDecryptFuncAddr)decrypt_d,
+        (pUpdateKeyFuncAddr)updatekey_1
+	},
+    //第0x26种
+	{
+		0xa2,
+		0xd,
+		0x543,
+		0x800,
+		0x0,
+		{ 0xeb, 0x01, 0xff, 0x68 },
+        0,
+        4,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 4,{ "2B C0","8D 5C 24 10","05","87 43 10" }, {0,1,2,3} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"8D 49 00",
+		3,
+        (pEncryptFuncAddr)encrypt_c,
+        (pDecryptFuncAddr)decrypt_c,
+        (pUpdateKeyFuncAddr)updatekey_5
+	},
+    //第0x27种
+	{
+		0xa4,
+		0xd,
+		0x538,
+		0x800,
+		0x0,
+		{ 0xeb, 0x01, 0xff, 0x68 },
+        0,
+        4,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 4,{ "2B C0","8D 5C 24 10","05","87 43 10" }, {0,1,2,3} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"90",
+		1,
+        (pEncryptFuncAddr)encrypt_c,
+        (pDecryptFuncAddr)decrypt_c,
+        (pUpdateKeyFuncAddr)updatekey_5
+	},
+    //第0x28种
+	{
+		0xa1,
+		0x9,
+		0x541,
+		0x410,
+		0xd,
+		{ 0xE9, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x04, 0x24 },
+        0,
+        8,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 3,{ "8B DC","68","8F 43 20"}, {0,1,2} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"8D 49 00",
+		3,
+        (pEncryptFuncAddr)encrypt_d,
+        (pDecryptFuncAddr)decrypt_d,
+        (pUpdateKeyFuncAddr)updatekey_1
+	}
 };
 
 
@@ -1572,6 +1722,97 @@ fuck_b_d :
         popfd
 	}
 }
+
+void encrypt_c(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+        movzx dx,key
+        mov eax,data
+        movzx ecx,decryptsize
+
+fuck_c_e:
+        xor [eax], dh
+        add [eax], dl       
+        inc eax
+        dec ecx
+        jnz fuck_c_e
+
+        popad
+        popfd
+    }
+}
+void decrypt_c(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+
+        movzx dx, key
+        mov eax, data
+        movzx ecx, decryptsize
+
+fuck_c_d :
+        sub [eax], dl
+        xor [eax], dh
+        inc eax
+        dec ecx
+        jnz fuck_c_d
+		
+        popad
+        popfd
+	}
+}
+
+void encrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+        movzx dx,key
+        mov eax,data
+        movzx ecx,decryptsize
+
+fuck_d_e:
+        xor [eax], dl
+        imul edx, dw_key_sig
+        xchg dh,dl
+        inc eax
+        dec ecx
+        jnz fuck_d_e
+
+        popad
+        popfd
+    }
+}
+void decrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+
+        movzx dx, key
+        mov eax, data
+        movzx ecx, decryptsize
+
+fuck_d_d :
+        xor [eax], dl
+        imul edx, dw_key_sig
+        xchg dh,dl
+        inc eax
+        dec ecx
+        jnz fuck_d_d
+		
+        popad
+        popfd
+	}
+}
+
 
 
 
