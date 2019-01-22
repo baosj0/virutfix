@@ -505,7 +505,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 				else
 				{
 #if DEBUG
-					printf("反汇编指令失败,跳过当前字节\n");
+					//printf("反汇编指令失败,跳过当前字节\n");   //有点多, 去了..
 #endif // DEBUG
 					++i;
 				}
@@ -1526,83 +1526,183 @@ nextpos:
             
 		outofwhile:
 
-			// 现在bodybase_RVA有了, 准备去解密bodybase_RVA+0x53c处的数据
-			//+539 00 c3  利用这两个数据, 利用加密算法的漏洞算出key, 
+			
+            //现在bodybase_RVA有了, 准备用各种偏移上的数据爆破出算法的密钥.
+
 			WORD keyfull = 0;
-			BYTE* pBlock = data + RVA2FO(pish, numOfSections, bodybase_RVA) + 0;  
-            
-
-            BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + FuckedVirut[virutkind].db_before_sig_offset_from_body + reCrackOff;
-
-            pBlock = pBlock + FuckedVirut[virutkind].block_descript_offset + reCrackOff - 1;
+            PBLOCKDESCRIPTOR pBlock = (PBLOCKDESCRIPTOR)(data + RVA2FO(pish, numOfSections, bodybase_RVA) + BLOCKOFF_MIN);
             BOOL found = FALSE;
+
+			for(int bj = last_crack_method, bm = 2; bm--; bj = (++bj) % 2)
+			{
+				if (bj == 0)
+				{
+					for (int p = last_before_sig, c = num_sig; c--; p = (++p) % num_sig)  //这样就从last_before_sig开始循环, 并保证了每个元素都会循环到一次
+					{
+						for (int k = last_before_off_index, m = num_off; m--; k = (++k) % num_off)  //同理
+						{
+							BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + before_off_array[k];
+
+							char str_after[0x200] = { 0 };
+
+							for (int b = 0; b < before_len[p]; ++b)
+							{
+								if (before_sig[p][b] != 0x11)
+								{
+									sprintf_s(str_after, "%s %02x", str_after, db_base_x_after[b]);
+								}
+								else
+								{
+									sprintf_s(str_after, "%s %s", str_after, "??");
+								}
+							}
+
+
+							for (DWORD i = 0; i <= 0xffff; ++i)   //防止死循环.
+							{
+								BYTE db_before[0x20] = { 0 };
+								memcpy(db_before, before_sig[p], 0x20);
+
+								FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig, 0x20);
+
+								if (sig_cmp(db_before, str_after))
+								{
+									found = TRUE;
+									//说明找到了
+									keyfull = i;
+
+									last_before_off_index = k;
+									last_before_off = before_off_array[k];
+									last_before_sig = p;
+									last_crack_method = 0;
+
+									goto outofcrack;
+								}
+							}
+						}
+					}
+				}
+				
+				if (bj == 1)
+				{
+					for (int p = last_before_sig, c = num_sig; c--; p = (++p) % num_sig)
+					{
+						for (int k = last_before_off, j = 0x200; j--; k = (++k) % 0x200)  //根据观察, 标志基本在0x200范围内, 所以就全来一遍
+						{
+							BYTE* db_base_x_after = data + RVA2FO(pish, numOfSections, bodybase_RVA) + k;
+
+							char str_after[0x200] = { 0 };
+
+							for (int b = 0; b < before_len[p]; ++b)
+							{
+								if (before_sig[p][b] != 0x11)
+								{
+									sprintf_s(str_after, "%s %02x", str_after, db_base_x_after[b]);
+								}
+								else
+								{
+									sprintf_s(str_after, "%s %s", str_after, "??");
+								}
+							}
+
+							for (DWORD i = 0; i <= 0xffff; ++i)   //防止死循环.
+							{
+								BYTE db_before[0x20] = { 0 };
+								memcpy(db_before, before_sig[p], 0x20);
+
+								FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig, 0x20);
+
+								if (sig_cmp(db_before, str_after))
+								{
+									found = TRUE;
+									//说明找到了
+									keyfull = i;
+
+									last_before_off = k;
+									last_before_sig = p;
+									last_crack_method = 1;
+
+									goto outofcrack;
+								}
+							}
+						}
+					}
+				}
+			}
+
             
-            for (DWORD i = 0; i <= 0xffff; ++i)   //这里用DWORD而不是word是为了防止0ffff执行后++i,又变成0, 成了死循环.
-            {
-                BYTE db_before[0x10] = { 0 };
-                memcpy(db_before, FuckedVirut[virutkind].db_before_sig, FuckedVirut[virutkind].db_before_sig_len);
-                int temp = i;
+			
+			
+			
 
-                FuckedVirut[virutkind].EncryptFunc(db_before, i, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].db_before_sig_len);
-
-                if (!memcmp(db_base_x_after, db_before, FuckedVirut[virutkind].db_before_sig_len))
-                {
-                    found = TRUE;
-                    //说明找到了
-                    keyfull = i;
-                    //break;
-                }
-            }
-
+outofcrack:
             if (found == FALSE)
             {
-                if (reCrackOff == 0)
-                {
-#if DEBUG
-                    printf("爆破密钥出错,重试偏移2\n");
-#endif
-                    reCrackOff = 2;
-                    goto outofwhile;
-                }
-                if (reCrackOff == 2)
-                {
-#if DEBUG
-                    printf("爆破密钥出错,重试偏移-2\n");
-#endif
-                    reCrackOff = -2;
-                    goto outofwhile;
-                }
-
 #if DEBUG
                 printf("爆破密钥出错,退出\n");
 #endif
                 goto end4;
             }
+            
 
-            //然后算出body+ block偏移 + recrackoff - 1时的keyfull          目前是body+ before_off + recrackoff位置              //因为起始和终点都加了同一个值, 所以距离不变, 这边参数不用改.
 
-            FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_offset - 1 - FuckedVirut[virutkind].db_before_sig_offset_from_body);
+            //这边开始滑动匹配来得到block的偏移..
+            //首先, 根据这么多样本的观察, 可以发现block基本在body+0x500~body+0x600之间, 其次, block的大小基本为0x400~0x800之间.
+            //所以, 我先从body+0x500开始解密0x800个字节大小
 
-            //从blockdescript-1开始解密
 
-            FuckedVirut[virutkind].DecryptFunc(pBlock, keyfull, FuckedVirut[virutkind].dw_key_sig, FuckedVirut[virutkind].block_descript_size + 1);
+            //算出body+BLOCKOFF_MIN处的keyfull
+            //算出body+BLOCKOFF_MIN时的keyfull, 目前是body+last_before_off
+
+            FuckedVirut[virutkind].UpdateKey(&keyfull, FuckedVirut[virutkind].dw_key_sig, BLOCKOFF_MIN - last_before_off);
+
+            //从BLOCKOFF_MIN开始解密BLOCKSIZE_MAX个字节
+
+            FuckedVirut[virutkind].DecryptFunc((BYTE*)pBlock, keyfull, FuckedVirut[virutkind].dw_key_sig, BLOCKSIZE_MAX);
+
+            //解密完毕, 开始滑动匹配找到block的开始位置
+            
+            for (int i = 0; i < 0x100; ++i)  //从0x500字节开始一个字节一个字节往后匹配
+            {
+                PBLOCKDESCRIPTOR pTemp = (PBLOCKDESCRIPTOR)((PBYTE)pBlock + i);
+                PBLOCKDESCRIPTOR pNext = pTemp + 1;
+
+                if (pTemp->before_bytes != 0 && (pTemp->before_offset + pTemp->before_bytes) == pNext->before_offset
+                    && pTemp->before_offset == 0)
+                {
+					found = TRUE;
+                    //此时找到的就应该是第一个blockdescriptor, 保存
+                    pBlock = pTemp;
+					break;
+                }
+
+            }
+
+			if (found == FALSE)
+			{
+#if DEBUG
+				printf("滑动匹配block起始位置出错,退出\n");
+#endif
+				goto end4;
+			}
+
 
 			//解密完毕, 找到CodeEntry2_Base_RVA
 
 
 			//WORD* pBodyBlock = (WORD*)(pBlock + 1 + (*pBlock - 1) * 0x8); //找到body的block  //发现解密后的这个blocknum有问题, 还是手动去找算了..
 
-			WORD *pBodyBlock = NULL;
-			for (int i = 0; i < 0x100; ++i)         //扩大了, 因为新一代的块数上限较多
+            PBLOCKDESCRIPTOR pBodyBlock = NULL;
+			for (int i = 0; i < BLOCKNUM_MAX; ++i)         //0x100个分块上限应该够用了.. 最低的变种是两块.
 			{
-				if (*(WORD*)(pBlock + 1 + i * 8) >= 0x3000 && *(WORD*)(pBlock + 1 + i * 8) <= 0x9000                    //为了通用性
-					&& *(WORD*)(pBlock + 1 + i * 8) == (*(WORD*)(pBlock + 1 + 6 + i * 8)&0x7fff))                       //稍微检查一下
-				{
-					pBodyBlock = (WORD*)(pBlock + 1 + i * 8);    
+                if (pBlock[i].before_bytes >= BODYSIZE_MIN && pBlock[i].before_bytes <= BODYSIZE_MAX &&
+                    pBlock[i].before_bytes == (pBlock[i].after_bytes & 0x7fff))
+                {
+                    pBodyBlock = &pBlock[i];
 					break;
-				}
+                }
 			}
-			if (pBodyBlock == NULL || *(pBodyBlock + 1) < 0x100)   //body的beforeoffset, 目前看到两个: 0x1e8, 和 0x300  第三个: 半新代0x2B8..
+			if (pBodyBlock == NULL || pBodyBlock->before_offset < 0x100)   //body的beforeoffset, 目前看到两个: 0x1e8, 和 0x300  第三个: 半新代0x2B8..
 			{
 #if DEBUG
 				printf("body的beforeoffset有问题, 可能是body的解密算法出错\n");
@@ -1611,24 +1711,24 @@ nextpos:
 				goto end4;
 			}
 
-			CodeEntry2_base_RVA = bodybase_RVA - *(pBodyBlock + 2);
+			CodeEntry2_base_RVA = bodybase_RVA - pBodyBlock->after_offset;
 
 			//如果是通过设置入口点方式的话, 那么就不会有那两条指令... c6 05和c7 05, 所以只有当有HOOK时才去搜这两条指令
 			if (hasHook1 == TRUE)
 			{
 				DWORD CodeToSearch_RVA = 0;
-				//接下来寻找包含before_offset 173的block
-				//新一代中是包含before_offset b4的block 
-				//半新代是包含before_offset c2的block
-				//virutkind==4是找b5的块
-				for (int i = 0; i < 0x100; ++i)   //0x100块
-				{
-					PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
-				
-					if ((FuckedVirut[virutkind].recover_off >= *(pTemp + 1)) && (FuckedVirut[virutkind].recover_off < (*(pTemp + 1) + *pTemp)))
-					{
-						CodeToSearch_RVA = CodeEntry2_base_RVA + *(pTemp + 2);
+                DWORD SearchBytes = 0;
 
+                //寻找包含recover指令的那个块RVA
+				for (int i = 0; i < BLOCKNUM_MAX; ++i)   //0x100块
+				{
+                    PBLOCKDESCRIPTOR pTemp = pBlock + i;
+				
+					if ((FuckedVirut[virutkind].recover_off >= pTemp->before_offset) 
+                        && (FuckedVirut[virutkind].recover_off < (pTemp->before_bytes + pTemp->before_offset)))
+					{
+						CodeToSearch_RVA = CodeEntry2_base_RVA + pTemp->after_offset;
+                        SearchBytes = pTemp->after_bytes;
 #if DEBUG
 						printf("包含那两条恢复指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
 #endif // DEBUG
@@ -1642,7 +1742,7 @@ nextpos:
 				DWORD Recover2_Value;
 				BOOL b1find = FALSE, b2find = FALSE;
 
-				for (int i = 0; i<0x1000; )   //在d7366c5e, 发现了奇葩的block_descript  我这边就直接0x1000个字节
+				for (int i = 0; i<SearchBytes; )   //在d7366c5e, 发现了奇葩的block_descript  我这边就直接0x1000个字节
 				{
 					if (*(pSearch + i) == 0xc6 && *(pSearch + i + 1) == 0x05)    //mov <va1>,db
 					{
@@ -1714,17 +1814,20 @@ nextpos:
 			if (hasHook1 == FALSE)
 			{
 				DWORD CodeToSearch_RVA = 0;
-					
-                //接下来寻找包含backvalue2指令的block 
-                for (int i = 0; i < 0x1000; ++i)  //在c73a190a 的0x80cd也发现奇葩的, 所以找这个也得很大..
-                {
-                    PWORD pTemp = (PWORD)(pBlock + 1 + i * 8);
+                DWORD SearchBytes = 0;
 
-                    if ((FuckedVirut[virutkind].backvalue_off >= *(pTemp + 1)) && (FuckedVirut[virutkind].backvalue_off < (*(pTemp + 1) + *pTemp)))
+                //接下来寻找包含backvalue2指令的block 
+                for (int i = 0; i < BLOCKNUM_MAX; ++i)  
+                {
+                    PBLOCKDESCRIPTOR pTemp = pBlock + i;
+
+                    if ((FuckedVirut[virutkind].backvalue_off >= pTemp->before_offset)
+                        && (FuckedVirut[virutkind].backvalue_off < (pTemp->before_bytes + pTemp->before_offset)))
                     {
-                        CodeToSearch_RVA = CodeEntry2_base_RVA + *(pTemp + 2);
+                        CodeToSearch_RVA = CodeEntry2_base_RVA + pTemp->after_offset;
+                        SearchBytes = pTemp->after_bytes;
 #if DEBUG
-                        printf("包含backvalue2指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
+                        printf("包含那两条恢复指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
 #endif // DEBUG
                         break;
                     }
@@ -1733,7 +1836,7 @@ nextpos:
 				if (CodeToSearch_RVA)
 				{
 					BYTE *pSearch = data + RVA2FO(pish, numOfSections, CodeToSearch_RVA);
-					for (int i = 0; i < 0x1000; )   //在c73a190a  的80cd出错, 所以扩大. 然而发现其实是因为反汇编出错导致的出错..
+					for (int i = 0; i < SearchBytes; )   //在c73a190a  的80cd出错, 所以扩大. 然而发现其实是因为反汇编出错导致的出错..
 					{  //有些独特的, 得分开.
 						if (virutkind == 3)
 						{
@@ -1860,7 +1963,7 @@ nextpos:
 #endif
                                 break;
                             }
-                        }else if (virutkind == 0x21)
+                        }else if (virutkind == 0x21 || virutkind == 0x2a)
                         {
                             if (sig_cmp(pSearch + i, "bd"))
                             {
@@ -1885,6 +1988,18 @@ nextpos:
 #endif
                                 break;
                             }
+                        }else if (virutkind == 0x2b)
+                        {
+							if (sig_cmp(pSearch + i, "C7 44 24 20"))  // add [esp+20h],dd_backvalue2
+							{
+								calc_backupvaluemethod = 1;
+								backvalue2 = *(int*)(pSearch + i + 4);
+								backvalue1 = 0;
+#if DEBUG
+								printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+								break;
+							}
                         }
 						else
 						{
@@ -1921,7 +2036,7 @@ nextpos:
 							
 
 							if (sig_cmp(pSearch + i, "81 c5"))  //add ebp, dd_backvalue2    目前变种4基准就看到这个, 我顺便把下面两种方式给写了.
-							{
+							{                                   // 0x29变种
 								calc_backupvaluemethod = 1;
 								backvalue2 = *(int*)(pSearch + i + 2);
 #if DEBUG
@@ -1990,6 +2105,7 @@ nextpos:
 				//这时候通过两个块来计算出原oep值
 				//尾节开始代码的的e9 xx 00 00 00 00			
 
+                //现在下面这三个没什么意义了, 我后面那些变种, 基本都设成1,然后修改backvalue1的值为0了..
 				const char *fuck = "god knows";
 				if (calc_backupvaluemethod == 1)
 				{
@@ -2058,7 +2174,7 @@ nextpos:
 
 			}
 
-			//清除感染标记
+			//清除感染标记     //感染标记还是不清比较好, 这样就像是打了个疫苗, 有了抗体..
             /*if (virutkind == 1)
             {
                 *(DWORD*)(data + 0x20) = 0;

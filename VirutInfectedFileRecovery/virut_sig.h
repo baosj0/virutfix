@@ -2,12 +2,21 @@
 
 #include <windows.h>
 
-#define MAXKIND 40        //当前处理的变种数量
+#define MAXKIND 43       //当前处理的变种数量
 
 #define rol( a , o ) \
 ((a<<(o%0x20)) | (a>>(0x20 - (o%0x20))))
 #define ror( a , o ) \
 ((a>>(o%0x20)) | (a<<(0x20 - (o%0x20))))
+
+#define BLOCKOFF_MIN  0x500
+#define BLOCKSIZE_MAX 0xa00
+#define BLOCKNUM_MAX 0x100
+
+#define BODYSIZE_MIN 0x3000
+#define BODYSIZE_MAX 0x9000
+
+
 
 extern BOOL getCFbyte(BYTE b1, BYTE b2, BOOL cf);
 extern BOOL getCFword(WORD w1, WORD w2, BOOL cf);
@@ -21,6 +30,16 @@ extern BOOL getCFdword_sbb(DWORD d1, DWORD d2, BOOL cf);
 typedef void (*pEncryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 typedef void (*pDecryptFuncAddr)(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 typedef void (*pUpdateKeyFuncAddr)(WORD* key, WORD dw_key_sig, WORD times);
+
+
+typedef struct BLOCKDESCRIPTOR
+{
+    WORD before_bytes;
+    WORD before_offset;
+    WORD after_offset;
+    WORD after_bytes;
+}*PBLOCKDESCRIPTOR;
+
 
 struct waypoint
 {
@@ -40,12 +59,7 @@ typedef struct sig_struct
 {
 	WORD recover_off;
 	WORD backvalue_off;
-	WORD block_descript_offset;
-	WORD block_descript_size;
 	WORD dw_key_sig;
-	BYTE db_before_sig[0x10];
-    WORD db_before_sig_offset_from_body;
-    BYTE db_before_sig_len;
     BYTE bjmpback;
     const char* jmpbackins;
 
@@ -140,3 +154,15 @@ extern void decrypt_c(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 //virutkind 25
 extern void encrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_d(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+
+
+extern int last_before_off_index;
+extern int last_before_off;
+extern int last_before_sig;
+extern int last_crack_method;
+extern int num_off;
+extern int num_sig;
+extern const BYTE before_sig[0x10][0x20];
+extern int before_len[0x10];
+extern int before_off_array[0x10];

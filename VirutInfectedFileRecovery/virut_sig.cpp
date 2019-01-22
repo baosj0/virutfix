@@ -7,16 +7,11 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0
     },
-	//第一种变种标记赋值        对应的backvalue2指令可能有3条, add sub xor [esp+0x20].. 这个属于较早变种, 所以基本属性没变化, 这里我相当于把3代合在了一起.
+	//第1种变种标记赋值        对应的backvalue2指令可能有3条, add sub xor [esp+0x20].. 这个属于较早变种, 所以基本属性没变化, 这里我相当于把3代合在了一起.
 	{
 		0x173,
 		0xe7,
-		0x53c,
-		0x500,   //0x408
 		0xd,
-        { 0x8b, 0xee, 0x81, 0xee, 0x00, 0x12, 0x1b, 0x00 },
-        0x1f,
-        8,
         FALSE,
         NULL,
         2,
@@ -33,16 +28,11 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pUpdateKeyFuncAddr)updatekey_1
 	},
 
-	//第二种变种标记赋值
+	//第2种变种标记赋值
 	{
         0xb4,
         0xfa,
-        0x59e,
-        0x600,
         0xefb5,
-        { 0xe9,0x10,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "FF E5",   //jmp ebp
         4 + 1,
@@ -61,16 +51,11 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_2,
         (pUpdateKeyFuncAddr)updatekey_1
 	},
-	//第三种变种标记赋值
+	//第3种变种标记赋值
 	{
 		0xc2,
 		0xfc,
-		0x5a1,
-		0x600,
 		0x35,
-		{ 0xe9,0x2d,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "FF E5",
 		4,
@@ -88,16 +73,11 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_3,
         (pUpdateKeyFuncAddr)updatekey_1
 	},
-	//第四种变种标记赋值
+	//第4种变种标记赋值
 	{
 		0xb5,
 		0xfe,
-		0x5b1,
-		0x600,
 		0xf1b3,
-		{ 0xe9,0x2d,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "ff e5",
 		5,
@@ -116,16 +96,11 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_2,
         (pUpdateKeyFuncAddr)updatekey_1
 	},
-	//第五种变种标记赋值
+	//第5种变种标记赋值
 	{
 		0xb4,
 		0xfa,
-		0x5ab,
-		0x600,
 		0xfb7f,
-        { 0xe9,0x2d,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "FF E5",
         4,
@@ -148,12 +123,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xb5,
 		0xf9,
-		0x5a1,
-		0x600,
 		0x3fb,
-		{ 0xe9,0x2d,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "FF E0",
 		4,
@@ -175,12 +145,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
         0xb4,
         0xfa,
-        0x59e,
-        0x600,
         0xefb5,
-        { 0xe9,0x10,0x01,0x00,0x00 },
-        0,
-        5,
         TRUE,
         "FF E5",   //jmp ebp
         4 + 1,
@@ -203,12 +168,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x9f,
         0x8,
-        0x548,
-        0x600,
         0x11,
-        { 0xe9,0xdd,0x00,0x00,0x00 },
-        0,
-        5,
         FALSE,
         NULL,
         3,
@@ -229,12 +189,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xc7,
         0x10a,
-        0x5a1,
-        0x600,
         0x3d,
-        {0xe9, 0x2d, 0x01, 0x00, 0x00},
-        0,
-        5,
         TRUE,
         "FF E5",
         4,
@@ -256,12 +211,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa8,
         0xb6,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         FALSE,
         NULL,
         3 + 1,
@@ -283,12 +233,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa3,
         0x1f,
-        0x549,
-        0x800,
         0x11,
-        {0x68,0x00,0x10,0x00,0x08},
-        0xf2,
-        0x5,
         FALSE,
         NULL,
         4,  //num waypoint
@@ -310,12 +255,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa6,
         0x20,
-        0x549,
-        0x800,
         0x11,
-        {0x68,0x00,0x10,0x00,0x08},
-        0xf2,
-        0x5,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -336,12 +276,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x95,
         0xf,
-        0x543,
-        0x800,
         0x0,  //不需要, 这个变种Key不会迭代
-        { 0xE8,0x4F ,0x03 ,0x00 ,0x00 ,0x83,0xEC ,0x20 ,0x8B ,0xFC ,0x6A ,0x08 ,0x33 ,0xC0},
-        0x10e,
-        0xe,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -363,12 +298,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa3,
         0x1f,
-        0x549,
-        0x800,
         0x11,
-        {0x68,0x00,0x10,0x00,0x08},
-        0xf2,
-        0x5,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -390,12 +320,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x95,
         0x11,
-        0x549,
-        0x800,
         0x11,
-        {0x68,0x00,0x10,0x00,0x08},
-        0xf2,
-        0x5,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -417,12 +342,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa7,
         0x9,
-        0x55e,
-        0x800,
         0x13,
-        { 0xe9,0xf3,0x00,0x00,0x00 },
-        0,
-        5,
         FALSE,
         NULL,
         5,
@@ -446,12 +366,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x96,
         0x10,
-        0x543,
-        0x800,
         0x0,
-        {0xeb,0x01,0xff,0xc7,0x04,0x24},
-        0x0,
-        0x6,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -473,12 +388,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x9e,
         0x17,
-        0x549,
-        0x800,
         0x11,
-        { 0x83, 0xEC, 0x20, 0x8B, 0xFC, 0x6A, 0x08, 0x33, 0xC0, 0x59 },
-        0x113,
-        0xa,
         FALSE,
         NULL,
         3,
@@ -500,12 +410,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x9c,
         0x15,
-        0x549,
-        0x800,
         0x11,
-        { 0xEB, 0x01, 0xFF, 0xC7, 0x04, 0x24 },
-        0x0,
-        0x6,
         FALSE,
         NULL,
         3,
@@ -526,12 +431,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x9b,
         0x17,
-        0x549,
-        0x800,
         0x11,
-        { 0xEB, 0x01, 0xFF, 0xC7, 0x04, 0x24 },
-        0x0,
-        0x6,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -552,12 +452,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0x9b,
         0x17,
-        0x549,
-        0x800,
         0x11,
-        { 0xEB, 0x01, 0xFF, 0xC7, 0x04, 0x24 },
-        0x0,
-        0x6,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -578,12 +473,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa6,
         0x9,
-        0x55e,
-        0x800,
         0x13,
-        { 0xe9,0xf3,0x00,0x00,0x00 },
-        0,
-        5,
         FALSE,
         NULL,
         5,
@@ -606,12 +496,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xac,
         0x9,
-        0x55e,
-        0x800,
         0x13,
-        { 0xe9,0xf3,0x00,0x00,0x00 },
-        0,
-        5,
         FALSE,
         NULL,
         5,
@@ -634,12 +519,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa4,
         0xb2,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 24",
         3 + 1,
@@ -661,12 +541,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa7,
         0x9,
-        0x55e,
-        0x800,
         0x13,
-        { 0xe9,0xf3,0x00,0x00,0x00 },
-        0,
-        5,
         FALSE,
         NULL,
         5,
@@ -689,12 +564,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa2,
         0x1e,
-        0x549,
-        0x800,
         0x11,
-        {0xeb,0x01,0xff,0xc7,0x04,0x24},
-        0x0,
-        0x6,
         FALSE,
         NULL,
         3,  //num waypoint
@@ -715,12 +585,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xae,
         0xbc,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 34",
         2 + 1,
@@ -741,12 +606,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xae,
         0xbc,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 30",
         2 + 1,
@@ -767,12 +627,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa8,
         0xb6,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 30",
         2 + 1,
@@ -793,12 +648,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa8,
         0xb6,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 30",
         2 + 1,
@@ -819,12 +669,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
         0xa8,
         0xb6,
-        0x55e,
-        0x800,   //79c
         0x17,
-        {0xe9, 0xf3, 0x0, 0x0, 0x0},
-        0,
-        5,
         TRUE,
         "FF 64 24 30",
         2 + 1,
@@ -845,12 +690,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
 		0xa2,
 		0xf,
-		0x53c,
-		0x500,   //0x408
 		0xd,
-        { 0xB1, 0x2B, 0xE8, 0xB9, 0x0A, 0x00, 0x00, 0x5F, 0x5E, 0x0F, 0x31 },
-        0x86,
-        0xb,
         FALSE,
         NULL,
         2,
@@ -870,12 +710,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
 		0x9a,
 		0xb,
-		0x53f,
-		0x500,   //0x408
 		0xd,
-        { 0xeb, 0x01, 0xff, 0xc7, 0x04,0x24 },
-        0,
-        6,
         FALSE,
         NULL,
         2,
@@ -896,12 +731,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
     {
 		0x9a,
 		0xb,
-		0x53f,
-		0x500,   //0x408
 		0xd,
-        { 0xEB, 0x01, 0xFF, 0xC7, 0x04, 0x24 },
-        0x0,
-        0x6,
         FALSE,
         NULL,
         2,
@@ -922,12 +752,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa6,
 		0xe,
-		0x543,
-		0x800,
 		0x0,
-		{ 0xeb, 0x01, 0xff, 0x68 },
-        0,
-        4,
         FALSE,
         NULL,
 		2,
@@ -947,12 +772,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa7,
 		0xe,
-		0x549,
-		0x800,
 		0x0,
-		{ 0xeb, 0x01, 0xff, 0x68 },
-        0,
-        4,
         FALSE,
         NULL,
 		2,
@@ -972,12 +792,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa1,
 		0xe,
-		0x53f,
-		0x410,
 		0xd,
-		{ 0xeb, 0x01, 0xff, 0xc7, 0x04, 0x24 },
-        0,
-        6,
         FALSE,
         NULL,
 		2,
@@ -997,12 +812,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa2,
 		0xd,
-		0x543,
-		0x800,
 		0x0,
-		{ 0xeb, 0x01, 0xff, 0x68 },
-        0,
-        4,
         FALSE,
         NULL,
 		2,
@@ -1022,12 +832,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa4,
 		0xd,
-		0x538,
-		0x800,
 		0x0,
-		{ 0xeb, 0x01, 0xff, 0x68 },
-        0,
-        4,
         FALSE,
         NULL,
 		2,
@@ -1047,12 +852,7 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	{
 		0xa1,
 		0x9,
-		0x541,
-		0x410,
 		0xd,
-		{ 0xE9, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x04, 0x24 },
-        0,
-        8,
         FALSE,
         NULL,
 		2,
@@ -1064,6 +864,70 @@ sig_struct FuckedVirut[MAXKIND + 1] =
 	    TRUE,
 		"8D 49 00",
 		3,
+        (pEncryptFuncAddr)encrypt_d,
+        (pDecryptFuncAddr)decrypt_d,
+        (pUpdateKeyFuncAddr)updatekey_1
+	},
+
+	//第0x29种
+	{
+		0xa7,
+		0xe9,
+		0x55d,
+        TRUE,
+        "FF E5",
+        4,
+        {
+			{ 0, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 2,{ "83 EC 30","83 C4 24" }, {0,1} },         
+			{ 1, TRUE,  TRUE, 0,{ 0 },{ 0 },{ 0 }, 2,{ "8B 2C 24","81 C5" }, {2,3} },			
+            { 4, FALSE, TRUE },
+			{ 6, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "f7 5c 24 04" }, {4} } 
+        },
+        7,
+        FALSE,
+        NULL,  
+        0,
+        (pEncryptFuncAddr)encrypt_2,
+        (pDecryptFuncAddr)decrypt_2,
+        (pUpdateKeyFuncAddr)updatekey_1
+	},
+
+	//第0x2a种
+	{
+		0x9a,
+		0xb,
+		0xd,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 3,{ "8D 5C 24 04","BD","87 6B 1C"}, {0,1,2} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    TRUE,
+		"90",
+		1,
+        (pEncryptFuncAddr)encrypt_d,
+        (pDecryptFuncAddr)decrypt_d,
+        (pUpdateKeyFuncAddr)updatekey_1
+	},
+	//第0x2b种
+	{
+		0xa1,
+		0x12,
+		0xd,
+        FALSE,
+        NULL,
+		2,
+		{
+			{ 1, TRUE,  TRUE, 1,{ "0f 84","74" },{2,1  },{ 4,1 }, 1,{ "C7 44 24 20"}, {0} },  
+			{ 4, FALSE, FALSE, 2,{ "0f 84","74" },{ 2,1 },{ 4,1 } }
+		},
+		8,
+	    FALSE,
+		NULL,
+		0,
         (pEncryptFuncAddr)encrypt_d,
         (pDecryptFuncAddr)decrypt_d,
         (pUpdateKeyFuncAddr)updatekey_1
@@ -1844,3 +1708,30 @@ BOOL getCFdword_sbb(DWORD d1, DWORD d2, BOOL cf)
 {
     return d1 < d2 + cf;
 }
+
+
+
+int last_before_off = 0;
+int last_before_off_index = 0;
+int last_before_sig = 0;
+
+int last_crack_method = 0;
+
+int num_off = 0x8;
+int num_sig = 0x2;
+
+const BYTE before_sig[0x10][0x20] =             //0x11代表可变数据, 匹配的时候随便
+{
+  { 0xC7, 0x04, 0x24, 0x11, 0x11, 0x11, 0x11, 0xE8, 0x11, 0x11,
+    0x11, 0x11, 0x56, 0x8B, 0x95, 0x11, 0x11, 0x11, 0x11, 0xE8,
+    0x00, 0x00, 0x00, 0x00 },
+  { 0x68, 0x11, 0x11, 0x11, 0x11, 0xE8, 0x11, 0x11,
+    0x11, 0x11, 0x56, 0x8B, 0x95, 0x11, 0x11, 0x11, 0x11, 0xE8,
+    0x00, 0x00, 0x00, 0x00 }
+};
+
+int before_len[0x10] = { 0x18, 0x16 };
+int before_off_array[0x10] =
+{
+    0x3, 0xf8, 0x115, 0x132, 0xe2, 0x5, 0x2, 0x0       //按目前出现的频率, 从高到低排列
+};
