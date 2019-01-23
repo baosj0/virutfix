@@ -176,3 +176,5 @@ extern int num_sig;
 extern const BYTE before_sig[0x10][0x20];
 extern int before_len[0x10];
 extern int before_off_array[0x10];
+
+extern int lastvirutkind;

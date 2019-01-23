@@ -210,7 +210,7 @@ DWORD MatchVirutCE1(BYTE* data)
 }
 
 
-
+//不修复单区段被感染文件.
 int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 {
 	HANDLE hFile = INVALID_HANDLE_VALUE, hFileMapping = INVALID_HANDLE_VALUE;
@@ -229,7 +229,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	BYTE *pcode = NULL;
     DWORD dwTemp = 0;
     BOOL success = FALSE;
-    DWORD reCrackOff = 0;
+    
 
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
@@ -390,7 +390,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 #if DEBUG
 			printf("只有一个区段,退出\n");
 #endif // DEBUG
-			goto end4;  //这种特殊情况暂时不考虑. 直接退出.
+			goto end4;  //这种特殊情况不考虑. 直接退出.
 		}
 
 		//先判断入口点是否在最后一个区段:
@@ -1278,7 +1278,7 @@ oepvir_decode:
 
 		if (CodeEntry2_RVA)  //开始解析尾节的跳转, 找到最后那一跳      //有些样本是直接入口在尾部, 所以尾部跳转时也得确认有效代码.
 		{
-			virutkind = virutkind == -1 ? 1 : virutkind; //如果是直接跳到codeentry2解析的, 那么默认先virutkind为1, 如果失败, 再进行virutkind为2的处理
+			virutkind = virutkind == -1 ? lastvirutkind : virutkind; //如果是直接跳到codeentry2解析的, 那么默认先virutkind为1, 如果失败, 再进行virutkind为2的处理
 			BYTE *pLastCode = data + RVA2FO(pish, numOfSections, CodeEntry2_RVA);
 			DWORD prevRVA = CodeEntry2_RVA;
 			DWORD nextRVA = 0;

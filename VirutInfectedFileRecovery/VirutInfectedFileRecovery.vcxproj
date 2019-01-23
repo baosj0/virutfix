@@ -121,7 +121,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="fuck.cpp" />
-    <ClCompile Include="virutkiller.cpp" />
     <ClCompile Include="virut_sig.cpp" />
   </ItemGroup>
   <ItemGroup>
