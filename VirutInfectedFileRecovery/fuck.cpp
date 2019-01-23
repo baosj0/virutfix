@@ -490,7 +490,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 						hook1pos_RVA = oep + i;
 						CodeEntry2_RVA = dest;
 #if DEBUG
-						printf("HOOK点1跳到了尾节: hook点1 %x 节尾%x\n", hook1pos_RVA, dest);
+						printf("HOOK点1跳到了尾节: hook点1 %x 尾节%x\n", hook1pos_RVA, dest);
 #endif // DEBUG
 						
 						break;
@@ -834,6 +834,20 @@ damn = "加法add";
 						{
 							index = *(pcode + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
 							block3_confirmed = 1;
+							
+							for (int pm = 0; pm < numofblock2_trueins; ++pm) //因为sub erx,4这指令会使得CF重置为0.. 那么adc和sbb就没意义了..
+							{
+								if (methodAll[pm] == 4)
+								{
+									methodAll[pm] = 1;
+								}
+								if (methodAll[pm] == 5)
+								{
+									methodAll[pm] = 0;
+								}
+							}
+
+
 						}
 
 						if (*(pcode + i) == 0x83 && *(pcode + i + 2) == 2 &&
@@ -841,9 +855,20 @@ damn = "加法add";
 						{
 							index = *(pcode + i + 1) - 0xe8;   //这个用于临时保存第三块的使用的寄存器索引.
 							block3_confirmed = 1;
+							for (int pm = 0; pm < numofblock2_trueins; ++pm)
+							{
+								if (methodAll[pm] == 4)
+								{
+									methodAll[pm] = 1;
+								}
+								if (methodAll[pm] == 5)
+								{
+									methodAll[pm] = 0;
+								}
+							}
 						}
 
-						if (*(pcode + i) == 0x48 || *(pcode + i + 1) == 0x49 || *(pcode + i + 1) == 0x4a)  //dec eax/ecx/edx
+						if (*(pcode + i) == 0x48 || *(pcode + i + 1) == 0x49 || *(pcode + i + 1) == 0x4a)  //dec eax/ecx/edx  只有这种情况, 才保留adc和sbb, 作者真TM阴险.
 						{
 							index = *(pcode + i) - 0x48;
 							block3_confirmed = 1;
@@ -854,6 +879,18 @@ damn = "加法add";
                         {
                             index = *(pcode + i + 1) - 0xc0;   //这个用于临时保存第三块的使用的寄存器索引.
                             block3_confirmed = 1;
+
+							for (int pm = 0; pm < numofblock2_trueins; ++pm)
+							{
+								if (methodAll[pm] == 4)
+								{
+									methodAll[pm] = 1;
+								}
+								if (methodAll[pm] == 5)
+								{
+									methodAll[pm] = 0;
+								}
+							}
                         }
 
 
@@ -1329,6 +1366,11 @@ refuck:
 					{
 						if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == FALSE) //此时e9/eb就是直接跟着的
 						{
+#if DEBUG
+							printf("确认此变种为第%x种变种\n", virutkind);
+#endif // DEBUG
+
+
 							if (*(pLastCode + i + 5) == 0xeb)
 							{
 								bodybase_RVA = prevRVA + i + 5 + 2 + *(int8_t*)(pLastCode + i + 5 + 1);  //算出跳转的目的地址
@@ -1358,6 +1400,9 @@ refuck:
 					if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == TRUE && findlast == TRUE &&
 						sig_cmp(pLastCode + i, FuckedVirut[virutkind].LastInstructionBeforeJmpBody))
 					{
+#if DEBUG
+						printf("确认此变种为第%x种变种\n", virutkind);
+#endif // DEBUG
 						//此时eb或e9肯定就跟着的.
 						if (*(pLastCode + i + FuckedVirut[virutkind].LastInstructionSize) == 0xeb)
 						{
@@ -1393,7 +1438,7 @@ refuck:
 								{
 									backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
 #if DEBUG
-									printf("用于计算回跳点的值1:%x\n", backvalue1);
+									//printf("用于计算回跳点的值1:%x\n", backvalue1);
 #endif
 								}
 
@@ -1431,7 +1476,7 @@ refuck:
 									if (virutkind < MAXKIND)
 									{
 #if DEBUG
-										printf("非变种%d,换种方式\n", virutkind);
+										//printf("非变种%d,换种方式\n", virutkind);
 #endif
 										++virutkind;
 										goto refuck;
@@ -1474,7 +1519,7 @@ refuck:
 							if (virutkind < MAXKIND)
 							{
 #if DEBUG
-								printf("非变种%d,换种方式\n", virutkind);
+								//printf("非变种%d,换种方式\n", virutkind);
 #endif
 								++virutkind;
 								goto refuck;
@@ -1491,7 +1536,7 @@ refuck:
 						if (virutkind < MAXKIND)
 						{
 #if DEBUG
-							printf("非变种%d,换种方式\n", virutkind);
+							//printf("非变种%d,换种方式\n", virutkind);
 #endif
 							++virutkind;
 							goto refuck;
@@ -1827,7 +1872,7 @@ outofcrack:
                         CodeToSearch_RVA = CodeEntry2_base_RVA + pTemp->after_offset;
                         SearchBytes = pTemp->after_bytes;
 #if DEBUG
-                        printf("包含那两条恢复指令的病毒代码块RVA为%x\n", CodeToSearch_RVA);
+                        printf("包含backvalue2指令的RVA为%x\n", CodeToSearch_RVA);
 #endif // DEBUG
                         break;
                     }
@@ -1893,7 +1938,8 @@ outofcrack:
                         }
                         else if (virutkind == 0xb || virutkind == 0xc || virutkind == 0xd || virutkind == 0xe 
                             || virutkind == 0x11 || virutkind == 0x1a || virutkind == 0x22 || virutkind == 0x23
-                            || virutkind == 0x24 || virutkind == 0x25)
+                            || virutkind == 0x24 || virutkind == 0x25 || virutkind == 0x2c || virutkind == 0x2d
+							|| virutkind == 0x2e || virutkind == 0x2f || virutkind == 0x32)
                         {
                             if (sig_cmp(pSearch + i, "81 ed"))
                             {
@@ -2000,11 +2046,23 @@ outofcrack:
 #endif
 								break;
 							}
+                        }else if (virutkind == 0x31)
+                        {
+							if (sig_cmp(pSearch + i, "81 cd"))  // or ebp, dd
+							{
+								calc_backupvaluemethod = 1;
+								backvalue2 = *(int*)(pSearch + i + 2);
+								backvalue1 = 0;
+#if DEBUG
+								printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+								break;
+							}
                         }
 						else
 						{
-							if (sig_cmp(pSearch + i, "81 44 24 24"))   //add dword ptr [esp+0x24], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..  //还有 esp+0x20的. 于是我直接去了+xx的偏移
-							{
+							if (sig_cmp(pSearch + i, "81 44 24"))   //add dword ptr [esp+ xx h], dd_backvalue2  目前我就看到第一种的, 顺便把后两种给补了..  //还有 esp+0x20的. 于是我直接去了+xx的偏移
+							{                                       // 81 44 24           xx   , dd_backvalue2  
 								calc_backupvaluemethod = 1;
 								backvalue2 = *(int*)(pSearch + i + 4);
 #if DEBUG
@@ -2013,8 +2071,8 @@ outofcrack:
 								break;
 							}
 
-							if (sig_cmp(pSearch + i, "81 74 24 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
-							{
+							if (sig_cmp(pSearch + i, "81 74 24"))   //xor dword ptr [esp+0x24], dd_backvalue2
+							{                                       //0x30变种.
 								calc_backupvaluemethod = 2;
 								backvalue2 = *(int*)(pSearch + i + 4);
 #if DEBUG
@@ -2023,7 +2081,7 @@ outofcrack:
 								break;
 							}
 
-                            if (sig_cmp(pSearch + i, "81 6c 24 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
+                            if (sig_cmp(pSearch + i, "81 6c 24"))   //sub dword ptr [esp+0x24], dd_backvalue2
                             {
                                 calc_backupvaluemethod = 3;
                                 backvalue2 = *(int*)(pSearch + i + 4);
@@ -2105,8 +2163,22 @@ outofcrack:
 				//这时候通过两个块来计算出原oep值
 				//尾节开始代码的的e9 xx 00 00 00 00			
 
+#if DEBUG
+				printf("用于计算回跳点的值1:%x\n", backvalue1);
+#endif
+
                 //现在下面这三个没什么意义了, 我后面那些变种, 基本都设成1,然后修改backvalue1的值为0了..
 				const char *fuck = "god knows";
+
+				if (calc_backupvaluemethod == 0)
+				{
+#if DEBUG
+					printf("找backvalue指令2出错,退出\n");
+#endif
+					goto end4;
+				}
+
+
 				if (calc_backupvaluemethod == 1)
 				{
 					pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 + backvalue2 - pinh->OptionalHeader.ImageBase;
