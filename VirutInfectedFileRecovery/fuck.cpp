@@ -1,5 +1,5 @@
 //fucked by baoshijin
-//last modified date: 2019.1.12
+//last modified date: 2019.1.24
 
 
 
@@ -211,6 +211,7 @@ DWORD MatchVirutCE1(BYTE* data)
 
 
 //不修复单区段被感染文件.
+//可修复被感染的PE64文件
 int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 {
 	HANDLE hFile = INVALID_HANDLE_VALUE, hFileMapping = INVALID_HANDLE_VALUE;
@@ -229,6 +230,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	BYTE *pcode = NULL;
     DWORD dwTemp = 0;
     BOOL success = FALSE;
+	
     
 
 	//参数检查
@@ -287,7 +289,11 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 	pinh = (PIMAGE_NT_HEADERS)(data + pidh->e_lfanew);
 
-	pish = (PIMAGE_SECTION_HEADER)(pinh + 1);
+	pish = (PIMAGE_SECTION_HEADER)((BYTE*)&pinh->OptionalHeader + pinh->FileHeader.SizeOfOptionalHeader);  //PE32和PE64之间sizeofimage和oep的值偏移还是一样的.. 区段表也一样. 就是Imagebase变大了, 可选头也大了0x10..
+
+	//虽然Imagebase偏移不一样, 但却不需要对x64做特殊处理, 因为用到imagebase的地方有两个, 一个是block2中有效指令, 另一个是c7/c6那指令.
+	//在64位PE中,我pinh->OptionalHeader.ImageBase 得到的是ULONGLONG imagebase中的高32位, 大部分情况是0, 此时, 因为病毒感染时用的就是这个数据,
+	//所以, 我错对错, 就刚好处理正确. 所以其实这一块不需要特别处理. 就找区段表特殊处理下就够了..
 
 	if (pinh->Signature != IMAGE_NT_SIGNATURE)
 	{
@@ -306,7 +312,6 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	}
 
 	
-
 	//virutkind = MatchVirutCE1(data);
 	
 	if (1 == 1)
@@ -325,21 +330,23 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 			
 			if (checksecname(tempname))
 			{
-				if (pjunk->Misc.VirtualSize == 0x1000 && pjunk->Characteristics == 0xc000'0000 && pjunk->SizeOfRawData == 0)
+				if (pjunk->Characteristics == 0xc000'0000 && pjunk->SizeOfRawData == 0)
 				{
 					//先修复PE头的问题. 
 					// | xx | 00000   ==>  |xx | yy
 					// | xx | kkkk    ==>  |xx|yy|kkkk
 					//这个貌似不大好判断, 还是不搬了..
-					pinh->OptionalHeader.SizeOfImage -= pinh->OptionalHeader.SectionAlignment;
-					memset(pjunk, 0, 0x28);
+
+					pinh->OptionalHeader.SizeOfImage -= pjunk->Misc.VirtualSize;
+
+					
 					pinh->FileHeader.NumberOfSections -= 1;
 
 #if DEBUG
-					printf("清除垃圾区段数据成功,SizeOfImage减小%x\n", pinh->OptionalHeader.SectionAlignment);
+					printf("清除垃圾区段数据成功,SizeOfImage减小%x\n", pjunk->Misc.VirtualSize);
 #endif
-					
-					//因为rawsize是0, 所以貌似不会计算到文件大小中去, 所以也不用添加相关逻辑..
+					memset(pjunk, 0, 0x28);
+					//因为rawsize是0, 所以不会计算到文件大小中去, 所以也不用添加相关逻辑..
 				}
 				else
 				{
@@ -561,7 +568,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 						if (*(pcode + i) >= 0xb8 && *(pcode + i) <= 0xba)
 						{
 							CodeEntry2_base_size = *(DWORD*)(pcode + i + 1);            //在1de86992_58c的样本中, 发现有mov ecx,xxx 和mov edx,yyy两个同时出现.. 
-							if (CodeEntry2_base_size <= 0x8000 && CodeEntry2_base_size >= 0x200)
+							if (CodeEntry2_base_size <= 0x9000 && CodeEntry2_base_size >= 0x3000)
 							{							
 								CodeEntry2_base_sizeAll[numofblock1_trueins] = *(DWORD*)(pcode + i + 1);
 								block1_confirmed = 1;                                        //有干扰项.虽然此处yyy大于0x10000直接被排除, 但为了保险, 还是用几块同时确定比较保险.
@@ -788,6 +795,42 @@ damn = "加法add";
 								++numofblock2_trueins;
 
 							}
+						}
+
+						//adc dword; sbb dword
+						//add dword; sub dword
+						if (*(pcode + i) == 0x81 && (*(pcode + i + 1) == 0x90 || *(pcode + i + 1) == 0x91 ||
+							*(pcode + i + 1) == 0x92 || *(pcode + i + 1) == 0x98 || *(pcode + i + 1) == 0x99 || *(pcode + i + 1) == 0x9a))
+						{
+
+							if (*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase >= pLastSec->VirtualAddress &&
+								*(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase < pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize)    //判断一下解密的地址肯定是在尾节.
+							{
+								decryptsize = 4;
+								block2_confirmed = 1;
+
+								CodeEntry2_base_RVAAll[numofblock2_trueins] = *(int*)(pcode + i + 2) - pinh->OptionalHeader.ImageBase;
+								key1All[numofblock2_trueins] = *(int*)(pcode + i + 6);
+								const char *damn = "不知道";
+
+								if ((*(pcode + i + 1) - 0x90 >= 0) && (*(pcode + i + 1) - 0x90) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x90;
+									methodAll[numofblock2_trueins] = 1;
+									damn = "加法adc";
+								}
+								if ((*(pcode + i + 1) - 0x98 >= 0) && (*(pcode + i + 1) - 0x98) <= 2)
+								{
+									indexAll_Block2[numofblock2_trueins] = *(pcode + i + 1) - 0x98;
+									methodAll[numofblock2_trueins] = 0;
+									damn = "减法sbb";
+								}
+#if DEBUG
+								printf("OEP节尾病毒使用的加密算法为%s, 密钥为%x, 基地址为%x\n", damn, key1All[numofblock2_trueins], CodeEntry2_base_RVAAll[numofblock2_trueins]);
+#endif // DEBUG
+								++numofblock2_trueins;
+							}
+
 						}
 
                        
@@ -1181,7 +1224,7 @@ oepvir_decode:
 
 			DWORD *pTemp = (DWORD*)(data + RVA2FO(pish, numOfSections, CodeEntry2_base_RVA));
             BOOL cf = 0;
-			for (int i = CodeEntry2_base_size / decryptsize; i >= 0 ; --i)  //CodeEntry2_base_size 为以decryptsize为单位的数目, 所以这里不需要除以decryptsize
+			for (int i = CodeEntry2_base_size / decryptsize; i >= 0 ; --i)  
 			{
 				if (decryptsize == 1)
 				{
@@ -1278,20 +1321,23 @@ oepvir_decode:
 
 		if (CodeEntry2_RVA)  //开始解析尾节的跳转, 找到最后那一跳      //有些样本是直接入口在尾部, 所以尾部跳转时也得确认有效代码.
 		{
-			virutkind = virutkind == -1 ? lastvirutkind : virutkind; //如果是直接跳到codeentry2解析的, 那么默认先virutkind为1, 如果失败, 再进行virutkind为2的处理
+			virutkind = lastvirutkind; 
 			BYTE *pLastCode = data + RVA2FO(pish, numOfSections, CodeEntry2_RVA);
 			DWORD prevRVA = CodeEntry2_RVA;
 			DWORD nextRVA = 0;
 			int num_e8call = 0;
             int times =  0;
 			BOOL findlast = FALSE;
-			int backvalue1 = 0, backvalue2 = 0;
+			ULONGLONG backvalue1 = 0;
+			int backvalue2 = 0;
 			int sig_confirmed1 = 0, sig_confirmed2 = 0;   //4个检查差不多够了.
 			int sig_confirmed3 = 0, sig_confirmed4 = 0;
 			int jmptimes = 0;
 			int lastsec_sig_confirmed[10] = { 0 };
+			int fucktimes = 0;
 
 refuck:
+			++fucktimes;
 			pLastCode = data + RVA2FO(pish, numOfSections, CodeEntry2_RVA);
 			prevRVA = CodeEntry2_RVA;
 			nextRVA = 0;
@@ -1356,7 +1402,9 @@ refuck:
                     {
                         if (sig_cmp(pLastCode + i, FuckedVirut[virutkind].jmpbackins))
                         {
-                            nextRVA = backvalue1 - pinh->OptionalHeader.ImageBase;
+							
+								nextRVA = backvalue1 - pinh->OptionalHeader.ImageBase;
+
                             goto nextpos;
                         }
                     }
@@ -1369,7 +1417,7 @@ refuck:
 #if DEBUG
 							printf("确认此变种为第%x种变种\n", virutkind);
 #endif // DEBUG
-
+							lastvirutkind = virutkind;
 
 							if (*(pLastCode + i + 5) == 0xeb)
 							{
@@ -1400,6 +1448,7 @@ refuck:
 					if (FuckedVirut[virutkind].bHasInstructionBeforeJmpBody == TRUE && findlast == TRUE &&
 						sig_cmp(pLastCode + i, FuckedVirut[virutkind].LastInstructionBeforeJmpBody))
 					{
+						lastvirutkind = virutkind;
 #if DEBUG
 						printf("确认此变种为第%x种变种\n", virutkind);
 #endif // DEBUG
@@ -1436,7 +1485,10 @@ refuck:
 								//先检查是否产生backvalue1再检查是否跟进
 								if (FuckedVirut[virutkind].mypath[j].bGenBackValue1)
 								{
+	
 									backvalue1 = i + 5 + prevRVA + pinh->OptionalHeader.ImageBase;
+
+									
 #if DEBUG
 									//printf("用于计算回跳点的值1:%x\n", backvalue1);
 #endif
@@ -1473,12 +1525,12 @@ refuck:
 								}
 								if (bTemp == FALSE)
 								{
-									if (virutkind < MAXKIND)
+									if (fucktimes < MAXKIND)
 									{
 #if DEBUG
-										//printf("非变种%d,换种方式\n", virutkind);
+										printf("非变种%d,换种方式\n", virutkind);
 #endif
-										++virutkind;
+										virutkind = (virutkind + 1) % (MAXKIND + 1) == 0 ? (virutkind + 1) % (MAXKIND + 1) + 1 : (virutkind + 1) % (MAXKIND + 1);
 										goto refuck;
 									}
 #if DEBUG
@@ -1516,12 +1568,12 @@ refuck:
 						cs_free(insn, count);
 						if (i >= 0x30*0xf)  //靠, 就因为这个我找了半天..org
 						{
-							if (virutkind < MAXKIND)
+							if (fucktimes < MAXKIND)
 							{
 #if DEBUG
-								//printf("非变种%d,换种方式\n", virutkind);
+								printf("非变种%d,换种方式\n", virutkind);
 #endif
-								++virutkind;
+								virutkind = (virutkind + 1) % (MAXKIND + 1) == 0 ? (virutkind + 1) % (MAXKIND + 1) + 1 : (virutkind + 1) % (MAXKIND + 1);
 								goto refuck;
 							}
 #if DEBUG
@@ -1533,12 +1585,12 @@ refuck:
 					else
 					{
                        
-						if (virutkind < MAXKIND)
+						if (fucktimes < MAXKIND)
 						{
 #if DEBUG
-							//printf("非变种%d,换种方式\n", virutkind);
+							printf("非变种%d,换种方式\n", virutkind);
 #endif
-							++virutkind;
+							virutkind = (virutkind + 1) % (MAXKIND + 1) == 0 ? (virutkind + 1) % (MAXKIND + 1) + 1 : (virutkind + 1) % (MAXKIND + 1);
 							goto refuck;
 						}
 #if DEBUG
@@ -1553,12 +1605,13 @@ nextpos:
 				++jmptimes;
 				if (jmptimes >= 0x100)        //0x100块够用了..
 				{
-					if (virutkind < MAXKIND)
+					if (fucktimes < MAXKIND)
 					{
 #if DEBUG
 						printf("跳转次数过多,出现死循环,非变种%d,换种方式\n", virutkind);
 #endif
-						++virutkind;
+						virutkind = (virutkind + 1) % (MAXKIND + 1) == 0 ? (virutkind + 1) % (MAXKIND + 1) + 1: (virutkind + 1) % (MAXKIND + 1);
+						
 						goto refuck;
 					}
 #if DEBUG
@@ -1883,7 +1936,7 @@ outofcrack:
 					BYTE *pSearch = data + RVA2FO(pish, numOfSections, CodeToSearch_RVA);
 					for (int i = 0; i < SearchBytes; )   //在c73a190a  的80cd出错, 所以扩大. 然而发现其实是因为反汇编出错导致的出错..
 					{  //有些独特的, 得分开.
-						if (virutkind == 3)
+						if (virutkind == 3 || virutkind == 0x34 || virutkind == 0x35)
 						{
 							if (sig_cmp(pSearch + i, "81 cd"))   //这里有个81 CD xx xx xx xx   or      ebp, 0FFFFDC91h
 							{
@@ -1891,24 +1944,21 @@ outofcrack:
 #if DEBUG
 								printf("用于计算回跳点的值2:%x\n", backvalue2);
 #endif
-							}
-
-							if (sig_cmp(pSearch + i, "01 6b f8"))  // add     [ebx-8], ebp  //加法  //目前就看到这种, 不过我就把剩下的两种写了
-							{
 								calc_backupvaluemethod = 1;
 								break;
 							}
-							if (sig_cmp(pSearch + i, "31 6b f8"))  // xor     [ebx-8], ebp  //异或
+							if (sig_cmp(pSearch + i, "81 f5"))    // xor      ebp, 0FFFFDC91h
 							{
-								calc_backupvaluemethod = 2;
+								backvalue2 = *(int*)(pSearch + i + 2);
+#if DEBUG
+								printf("用于计算回跳点的值2:%x\n", backvalue2);
+#endif
+								calc_backupvaluemethod = 1;
 								break;
 							}
-							if (sig_cmp(pSearch + i, "29 6b f8"))  // sub     [ebx-8], ebp  //减法
-							{
-								calc_backupvaluemethod = 3;
-								break;
-							}
-						}else if (virutkind == 8 || virutkind == 0xa|| virutkind == 0xf || virutkind == 0x10 
+							
+						}
+						else if (virutkind == 8 || virutkind == 0xa || virutkind == 0xf || virutkind == 0x10
                             || virutkind == 0x16 || virutkind == 0x17 || virutkind == 0x18 || virutkind == 0x19 
                             || virutkind == 0x1b || virutkind == 0x1c || virutkind == 0x1d || virutkind == 0x1e
                             || virutkind == 0x1f)
@@ -1945,7 +1995,7 @@ outofcrack:
                             {
                                 calc_backupvaluemethod = 1;       
                                 backvalue2 = 0 - *(int*)(pSearch + i + 2);
-                                backvalue1 = 0;        //这个变种很心机啊, 居然把backvalue1清零了..
+                                backvalue1 = 0;        
 #if DEBUG                       
                                 printf("特别的变种,用于计算回跳点的值1:%x\n", backvalue1); //注意,这一行别写在#if DEBUG这行上了.
                                 printf("用于计算回跳点的值2:%x\n", backvalue2);
@@ -1956,7 +2006,7 @@ outofcrack:
                             {
                                 calc_backupvaluemethod = 1;
                                 backvalue2 = *(int*)(pSearch + i + 2);
-                                backvalue1 = 0;        //这个变种很心机啊, 居然把backvalue1清零了..
+                                backvalue1 = 0;        
 #if DEBUG                       
                                 printf("特别的变种,用于计算回跳点的值1:%x\n", backvalue1); //注意,这一行别写在#if DEBUG这行上了.
                                 printf("用于计算回跳点的值2:%x\n", backvalue2);
@@ -2181,23 +2231,30 @@ outofcrack:
 
 				if (calc_backupvaluemethod == 1)
 				{
+					
 					pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 + backvalue2 - pinh->OptionalHeader.ImageBase;
+					
 					fuck = "加法";
 				}
 				if (calc_backupvaluemethod == 2)
 				{
-					pinh->OptionalHeader.AddressOfEntryPoint = (backvalue1 ^ backvalue2) - pinh->OptionalHeader.ImageBase;
+					
+					pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 ^ backvalue2 - pinh->OptionalHeader.ImageBase;
+					
 					fuck = "异或";
 				}
 				if (calc_backupvaluemethod == 3)
 				{
-					pinh->OptionalHeader.AddressOfEntryPoint = (backvalue1 - backvalue2) - pinh->OptionalHeader.ImageBase;
+					
+					pinh->OptionalHeader.AddressOfEntryPoint = backvalue1 - backvalue2 - pinh->OptionalHeader.ImageBase;
+					
 					fuck = "减法";
 				}
 				
 
 #if DEBUG
 				printf("backvalue计算方法为:%s\n重新设置PE头中的OEP为%x\n", fuck, pinh->OptionalHeader.AddressOfEntryPoint);
+				
 #endif // DEBUG
 
 			}
@@ -2214,7 +2271,9 @@ outofcrack:
 
 			pLastSec->Misc.VirtualSize -= LastSectionReduce_VSize;
 			pLastSec->SizeOfRawData -= LastSectionReduce_RSize;
+
 			pinh->OptionalHeader.SizeOfImage -= LastSectionReduce_VSize;
+
 
 			dwFileSize -= LastSectionReduce_RSize;
 
@@ -2339,7 +2398,16 @@ int main()
 
         sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
         printf("修复文件%s\n", data.cFileName);
-        ScanFile(cFullPath, FALSE);
+
+		__try
+		{
+			ScanFile(cFullPath, FALSE);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			;
+		}
+        
         printf("\n\n");
     } while (FindNextFile(hFind, &data));
 

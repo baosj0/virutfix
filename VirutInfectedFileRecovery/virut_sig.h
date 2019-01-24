@@ -2,7 +2,7 @@
 
 #include <windows.h>
 
-#define MAXKIND 51       //当前处理的变种数量
+#define MAXKIND 53       //当前处理的变种数量
 
 #define rol( a , o ) \
 ((a<<(o%0x20)) | (a>>(0x20 - (o%0x20))))
@@ -104,6 +104,8 @@ extern void updatekey_7(WORD* key, WORD dw_key_sig, WORD times);
 //virutkind 2c
 extern void updatekey_8(WORD* key, WORD dw_key_sig, WORD times);
 
+//virutkind 35
+extern void updatekey_9(WORD* key, WORD dw_key_sig, WORD times);
 
 //virutkind 1 的加解密相关函数
 extern void encrypt_1(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
@@ -165,6 +167,10 @@ extern void decrypt_e(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 //virutkind 32
 extern void encrypt_f(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 extern void decrypt_f(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+
+//virutkind 35
+extern void encrypt_g(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
+extern void decrypt_g(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize);
 
 
 extern int last_before_off_index;

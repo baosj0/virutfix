@@ -1092,6 +1092,49 @@ sig_struct FuckedVirut[MAXKIND + 1] =
         (pDecryptFuncAddr)decrypt_1,
         (pUpdateKeyFuncAddr)updatekey_1
 	},
+	//第0x34种
+	{
+		0xc4,
+		0x101,
+		0x2b,
+        TRUE,
+        "C2 1C 00",
+		4,
+		{
+			{ 0, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "83 ec 2c" }, {0} },         //sub esp,0x2c
+			{ 1, TRUE,  TRUE, 0,{ 0 },{ 0 },{ 0 }, 3,{ "2B ED","81 F5","01 6C 24 20" }, {1,2,3} },  
+			{ 3, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "65 FF 35 34 00 00 00" }, {4} },         //push gs:[0x34]
+			{ 4, FALSE, TRUE },
+		},
+		7,
+	    TRUE,
+		"8d 49 00",
+		3,
+        (pEncryptFuncAddr)encrypt_3,
+        (pDecryptFuncAddr)decrypt_3,
+        (pUpdateKeyFuncAddr)updatekey_1
+	},
+	//第0x35种
+	{
+		0xb0,
+		0xeb,
+		0x1f,
+        TRUE,
+        "c3",
+        3,
+        {
+			{ 0, FALSE, FALSE, 0,{ 0 },{ 0 },{ 0 }, 1,{ "83 EC 28" },{ 0 } },
+			{ 1, TRUE,  TRUE,  1, {"0f 86","76"}, {2,1}, {4,1}, 2,{ "33 ED","81 CD","11 6C 24 3C" },{ 1,2,3 } },         
+			{ 4, FALSE, TRUE}, 
+        },
+        7,
+        FALSE,
+        NULL,    //nop
+        0,
+        (pEncryptFuncAddr)encrypt_g,
+        (pDecryptFuncAddr)decrypt_g,
+        (pUpdateKeyFuncAddr)updatekey_9
+	},
 };
 
 
@@ -1246,6 +1289,28 @@ fuck_8_u :
         dec ecx
         
         jnz fuck_8_u
+        mov temp,ax
+        popad
+        popfd
+    }
+    *key = temp;
+}
+void updatekey_9(WORD* key, WORD dw_key_sig, WORD times)
+{
+    WORD temp = *key;
+    __asm
+    {
+        pushfd
+        pushad
+        movzx eax, temp
+        movzx ecx, times
+
+fuck_9_u :
+        xchg ah,al
+		imul dw_key_sig
+        dec ecx
+        
+        jnz fuck_9_u
         mov temp,ax
         popad
         popfd
@@ -1945,6 +2010,54 @@ fuck_f_d :
         popfd
 	}
 }
+void encrypt_g(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+        movzx dx,key
+        mov eax,data
+        movzx ecx,decryptsize
+
+fuck_g_e:
+        sub [eax], dl
+        xor [eax], dh
+		xchg dl,dh
+        imul edx,dw_key_sig
+        inc eax
+        dec ecx
+        jnz fuck_g_e
+
+        popad
+        popfd
+    }
+}
+void decrypt_g(BYTE *data, WORD key, WORD dw_key_sig, WORD decryptsize)
+{
+    __asm
+    {
+        pushfd
+        pushad
+
+        movzx dx, key
+        mov eax, data
+        movzx ecx, decryptsize
+
+fuck_g_d :
+        xor [eax], dh
+        add [eax], dl
+		xchg dl,dh
+        imul edx,dw_key_sig
+        inc eax
+        dec ecx
+        jnz fuck_g_d
+		
+        popad
+        popfd
+	}
+}
+
 
 BOOL getCFbyte(BYTE b1, BYTE b2, BOOL cf)
 {
