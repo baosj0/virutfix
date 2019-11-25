@@ -212,7 +212,8 @@ DWORD MatchVirutCE1(BYTE* data)
 
 //不修复单区段被感染文件.
 //可修复被感染的PE64文件
-int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
+//修复成功时返回10, 未发现病毒或各种错误时返回0
+extern "C" _declspec(dllexport) int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 {
 	HANDLE hFile = INVALID_HANDLE_VALUE, hFileMapping = INVALID_HANDLE_VALUE;
 	int result = 0;
@@ -236,7 +237,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 	//参数检查
 	if (szFileName == NULL || !strcmp(szFileName, ""))
 	{
-		result = -1;
+		result = 0;
 		goto end1;
 	}
 
@@ -245,7 +246,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		result = -1;
+		result = 0;
 		goto end1;
 	}
 	
@@ -253,7 +254,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 	if (dwFileSize < 0x1000 || dwSizeHigh)
 	{
-		result = -1;
+		result = 0;
 		goto end2;
 	}
  
@@ -262,13 +263,13 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
     bFreeFlag = TRUE;
     if (dwTemp != dwFileSize)
     {
-        result = -1;
+        result = 0;
         goto end3;
     }
 
 	if (data == 0)
 	{
-		result = -1;
+		result = 0;
 		goto end3;
 	}
 
@@ -277,13 +278,13 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 	if (pidh->e_magic != IMAGE_DOS_SIGNATURE)
 	{
-		result = -1;
+		result = 0;
 		goto end4;
 	}
 
 	if ((DWORD)pidh->e_lfanew >= 0x10000) 
 	{
-		result = -1;
+		result = 0;
 		goto end4;
 	}
 
@@ -297,7 +298,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 	if (pinh->Signature != IMAGE_NT_SIGNATURE)
 	{
-		result = -1;
+		result = 0;
 		goto end4;
 	}
 
@@ -363,11 +364,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 
 		}	
 #endif // DEBUG
-		if (bScanOnly)
-		{
-			result = 3;  //发现变种1,未恢复
-			goto end4;
-		}
+	
 		csh handle;
 		cs_insn *insn;
 		cs_open(CS_ARCH_X86, CS_MODE_32, &handle);
@@ -548,7 +545,7 @@ int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 			int jmptimes = 0;
 			int prevRVA = CodeEntry1_RVA, nextRVA = 0;
 			DWORD block_RVA[5+1] = { 0 };  //尾部的0作为一个标记
-			int block1_confirmed = 0, block2_confirmed, block3_confirmed, block4_confirmed;
+			int block1_confirmed = 0, block2_confirmed = 0, block3_confirmed = 0, block4_confirmed = 0;
 			int index = -1;
 			int indexAll[10] = { 0 };
 			DWORD key1 = 0;
@@ -970,7 +967,7 @@ damn = "加法add";
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 							}
 						}
@@ -987,7 +984,7 @@ damn = "加法add";
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 								
 							}
@@ -1005,7 +1002,7 @@ damn = "加法add";
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 								
 							}
@@ -1045,7 +1042,7 @@ damn = "加法add";
 								}
 								else
 								{
-									printf("所有均已搜完,非virut,退出\n");
+									printf("所有均已搜完,非virut,退出\n");result = 0;
 									goto end4;
 								}
 								goto end4;
@@ -1069,7 +1066,7 @@ damn = "加法add";
 									goto research_hook1;
 								}
 								
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 														
 							}
@@ -1088,7 +1085,7 @@ damn = "加法add";
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 								
 							}
@@ -1107,7 +1104,7 @@ damn = "加法add";
 									printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 									goto research_hook1;
 								}
-								printf("所有均已搜完,非virut,退出\n");
+								printf("所有均已搜完,非virut,退出\n");result = 0;
 								goto end4;
 								
 							}
@@ -1132,7 +1129,7 @@ damn = "加法add";
 								printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 								goto research_hook1;
 							}
-							printf("所有均已搜完,非virut,退出\n");
+							printf("所有均已搜完,非virut,退出\n");result = 0;
 							goto end4;
 						}
 					}
@@ -1147,7 +1144,7 @@ damn = "加法add";
 							printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 							goto research_hook1;
 						}
-						printf("所有均已搜完,非virut,退出\n");
+						printf("所有均已搜完,非virut,退出\n");result = 0;
 						goto end4;
 					}
 				}
@@ -1166,7 +1163,7 @@ damn = "加法add";
 						printf("可能是hook点1选错,从上次搜到E9的位置后面继续搜索\n");
 						goto research_hook1;
 					}
-					printf("所有均已搜完,非virut,退出\n");
+					printf("所有均已搜完,非virut,退出\n");result = 0;
 					goto end4;
 				}
 
@@ -2328,6 +2325,7 @@ outofcrack:
 	if (virutkind == 0)
 	{
 		printf("确认非virut变种,不处理\n");
+		result = 0;
 	}
 #endif // DEBUG
 
@@ -2335,31 +2333,43 @@ end4:
 
     if (success)
     {
+		if (bScanOnly == FALSE)
+		{
 #if DEBUG
-        printf("修复成功,开始写入数据\n");
+			printf("修复成功,开始写入数据\n");
 #endif
-        DWORD byteswritten = 0;
-        SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-        WriteFile(hFile, data, dwFileSize, &byteswritten, NULL);
-        if (byteswritten != dwFileSize)
-        {
+			DWORD byteswritten = 0;
+			SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+			WriteFile(hFile, data, dwFileSize, &byteswritten, NULL);
+			if (byteswritten != dwFileSize)
+			{
 #if DEBUG
-            printf("修复后的数据写入失败\n");
+				printf("修复后的数据写入失败\n");
 #endif
-        }
-        else
-        {
+			}
+			else
+			{
 #if DEBUG
-            printf("文件修复成功\n");
+				printf("文件修复成功\n");
 #endif
-            SetFilePointer(hFile, dwFileSize, NULL, FILE_BEGIN);
-            SetEndOfFile(hFile);
-            
-        }
+				SetFilePointer(hFile, dwFileSize, NULL, FILE_BEGIN);
+				SetEndOfFile(hFile);
+				result = 10;
+
+			}
+		}
+		else
+		{
+			result = 5;             //这样造成了很大的浪费,因为无论如何都进行解密操作。
+		}
+
+		
+
     }
 
 
-    VirtualFree(data, NULL, MEM_DECOMMIT|MEM_RELEASE);
+    VirtualFree(data, dwFileSize, MEM_DECOMMIT);
+	VirtualFree(data, NULL, MEM_RELEASE);
 
 end3:
 
@@ -2375,43 +2385,3 @@ end1:
 
 }
 
-
-int main()
-{
-    /*char szFile[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\test" };
-    ScanFile(szFile, FALSE);*/
-
-
-    char szFilePath[260] = { "C:\\Users\\bj2017\\OneDrive\\source\\VirutInfectedFileRecovery\\VirutInfectedFileRecovery\\fuckittest" };
-    WIN32_FIND_DATA data;
-    HANDLE hFind;
-    char cFullPath[260];
-    char cNewPath[260];
-    sprintf_s(cFullPath, "%s\\*.*", szFilePath);
-    hFind = FindFirstFile(cFullPath, &data);
-    do
-    {
-        if ((!strcmp(".", data.cFileName)) || (!strcmp("..", data.cFileName)))
-        {
-            continue;
-        }
-
-        sprintf_s(cFullPath, "%s\\%s", szFilePath, data.cFileName);
-        printf("修复文件%s\n", data.cFileName);
-
-		__try
-		{
-			ScanFile(cFullPath, FALSE);
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
-			;
-		}
-        
-        printf("\n\n");
-    } while (FindNextFile(hFind, &data));
-
-    FindClose(hFind);
-
-	return 0;
-}
