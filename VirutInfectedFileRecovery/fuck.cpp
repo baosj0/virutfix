@@ -212,7 +212,7 @@ DWORD MatchVirutCE1(BYTE* data)
 
 //不修复单区段被感染文件.
 //可修复被感染的PE64文件
-//修复成功时返回10, 未发现病毒或各种错误时返回0
+//修复成功时返回10，发现不扫描时返回5, 未发现病毒或各种错误时返回0
 extern "C" _declspec(dllexport) int ScanFile(_In_ CHAR* szFileName, _In_ int bScanOnly)
 {
 	HANDLE hFile = INVALID_HANDLE_VALUE, hFileMapping = INVALID_HANDLE_VALUE;
